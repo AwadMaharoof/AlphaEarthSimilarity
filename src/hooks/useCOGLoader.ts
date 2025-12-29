@@ -1,11 +1,42 @@
 import { useState, useCallback } from 'react';
-import { fromUrl } from 'geotiff';
+import { fromUrl, addDecoder, BaseDecoder } from 'geotiff';
+import { decompress as zstdDecompress } from 'fzstd';
 import { BoundingBox, EmbeddingData, TileInfo } from '../types';
 import { findTileForBoundingBox, getTileOrigin } from '../utils/cogIndex';
 import { bboxToPixelWindow } from '../utils/coordinates';
 import { flipVertical } from '../utils/flipVertical';
 import { dequantize } from '../utils/dequantize';
 import { CONFIG } from '../constants';
+
+// ZSTD magic bytes
+const ZSTD_MAGIC = [0x28, 0xb5, 0x2f, 0xfd];
+
+function isZstdCompressed(buffer: ArrayBuffer): boolean {
+  const view = new Uint8Array(buffer);
+  return ZSTD_MAGIC.every((byte, i) => view[i] === byte);
+}
+
+// Custom decoder for compression code 50000 (ZSTD-compressed raw pixels)
+class ZstdDecoder extends BaseDecoder {
+  async decode(_fileDirectory: unknown, buffer: ArrayBuffer) {
+    if (isZstdCompressed(buffer)) {
+      const compressed = new Uint8Array(buffer);
+      const decompressed = zstdDecompress(compressed);
+      const dataBuffer = new ArrayBuffer(decompressed.byteLength);
+      new Uint8Array(dataBuffer).set(decompressed);
+      return new Int8Array(dataBuffer);
+    }
+    return new Int8Array(buffer);
+  }
+}
+
+// Register decoder for GDAL's compression code 50000
+let decoderRegistered = false;
+function ensureDecoderRegistered() {
+  if (decoderRegistered) return;
+  decoderRegistered = true;
+  addDecoder(50000, () => Promise.resolve(ZstdDecoder));
+}
 
 interface UseCOGLoaderResult {
   loadEmbeddings: (bbox: BoundingBox) => Promise<EmbeddingData>;
@@ -24,9 +55,9 @@ export function useCOGLoader(): UseCOGLoaderResult {
   const loadEmbeddings = useCallback(async (bbox: BoundingBox): Promise<EmbeddingData> => {
     setIsLoading(true);
     setError(null);
+    ensureDecoderRegistered();
 
     try {
-      // Find the tile that contains this bounding box
       const tileResult = await findTileForBoundingBox(bbox);
       if (!tileResult) {
         throw new Error('No tile found for the selected area. Try selecting a different location.');
@@ -39,11 +70,7 @@ export function useCOGLoader(): UseCOGLoaderResult {
 
       setCurrentTile(tile);
 
-      // Get tile origin in UTM
       const origin = getTileOrigin(tile);
-
-      // Calculate pixel window for the bounding box
-      // Pixel size is 10m for AEF tiles
       const pixelSize = 10;
       const [windowX, windowY, windowWidth, windowHeight] = bboxToPixelWindow(
         bbox,
@@ -52,26 +79,20 @@ export function useCOGLoader(): UseCOGLoaderResult {
         pixelSize
       );
 
-      // Validate window dimensions
       if (windowWidth <= 0 || windowHeight <= 0) {
         throw new Error('Invalid bounding box dimensions');
       }
 
-      // Open the COG file
       const tiff = await fromUrl(tile.url);
       const image = await tiff.getImage();
 
-      // Get the raster window
-      // geotiff.js uses [left, top, right, bottom] for window
       const rasterData = await image.readRasters({
         window: [windowX, windowY, windowX + windowWidth, windowY + windowHeight],
         interleave: true,
       });
 
-      // The data comes as TypedArray - we need Int8Array
       const rawData = rasterData as unknown as Int8Array;
 
-      // Flip vertically (COGs are stored bottom-up)
       const flippedData = flipVertical(
         rawData,
         windowWidth,
@@ -79,7 +100,6 @@ export function useCOGLoader(): UseCOGLoaderResult {
         CONFIG.EMBEDDING_BANDS
       );
 
-      // Dequantize to Float32
       const { embeddings, mask } = dequantize(flippedData, windowWidth, windowHeight);
 
       const result: EmbeddingData = {

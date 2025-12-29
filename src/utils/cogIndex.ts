@@ -1,36 +1,35 @@
 import { TileInfo, BoundingBox } from '../types';
 import { CONFIG } from '../constants';
-import { getUTMZone, parseUTMZone } from './coordinates';
+import { getUTMZone, latLngToUTM } from './coordinates';
 
 let cachedTiles: TileInfo[] | null = null;
 
 /**
- * Parse WKT POLYGON to extract bounding box in UTM coordinates
- * Format: "POLYGON ((minX minY, maxX minY, maxX maxY, minX maxY, minX minY))"
+ * Parse WKT POLYGON to extract bounding box
+ * The WKT is in WGS84 (EPSG:4326) format: POLYGON((lng lat, lng lat, ...))
  */
-function parseWKTBounds(wkt: string): { minX: number; minY: number; maxX: number; maxY: number } {
+function parseWKTBounds(wkt: string): BoundingBox {
   // Remove quotes if present
   const cleanWkt = wkt.replace(/^"|"$/g, '');
 
-  // Extract coordinates from POLYGON ((x1 y1, x2 y2, ...))
   const match = cleanWkt.match(/POLYGON\s*\(\(([\d\s.,+-]+)\)\)/i);
   if (!match) {
     throw new Error(`Invalid WKT format: ${wkt}`);
   }
 
   const coordPairs = match[1].split(',').map((pair) => {
-    const [x, y] = pair.trim().split(/\s+/).map(Number);
-    return { x, y };
+    const [lng, lat] = pair.trim().split(/\s+/).map(Number);
+    return { lng, lat };
   });
 
-  const xs = coordPairs.map((c) => c.x);
-  const ys = coordPairs.map((c) => c.y);
+  const lngs = coordPairs.map((c) => c.lng);
+  const lats = coordPairs.map((c) => c.lat);
 
   return {
-    minX: Math.min(...xs),
-    minY: Math.min(...ys),
-    maxX: Math.max(...xs),
-    maxY: Math.max(...ys),
+    minLng: Math.min(...lngs),
+    minLat: Math.min(...lats),
+    maxLng: Math.max(...lngs),
+    maxLat: Math.max(...lats),
   };
 }
 
@@ -57,98 +56,6 @@ function s3ToHttps(s3Url: string): string {
     /^s3:\/\/[^/]*\.opendata\.source\.coop\//,
     'https://data.source.coop/'
   );
-}
-
-/**
- * Convert UTM bounds to approximate lat/lng bounds
- * This is an approximation using the inverse of the UTM projection
- */
-function utmBoundsToLatLng(
-  utmBounds: { minX: number; minY: number; maxX: number; maxY: number },
-  utmZone: string
-): BoundingBox {
-  const { zone, hemisphere } = parseUTMZone(utmZone);
-
-  // Approximate inverse UTM to lat/lng
-  // Central meridian for the zone
-  const lng0 = (zone - 1) * 6 - 180 + 3;
-
-  // WGS84 parameters
-  const a = 6378137.0;
-  const f = 1 / 298.257223563;
-  const k0 = 0.9996;
-  const e = Math.sqrt(2 * f - f * f);
-  const e1 = (1 - Math.sqrt(1 - e * e)) / (1 + Math.sqrt(1 - e * e));
-
-  function utmToLatLng(easting: number, northing: number): { lat: number; lng: number } {
-    const x = easting - 500000;
-    let y = northing;
-    if (hemisphere === 'S') {
-      y -= 10000000;
-    }
-
-    const M = y / k0;
-    const mu = M / (a * (1 - e * e / 4 - 3 * e * e * e * e / 64 - 5 * e * e * e * e * e * e / 256));
-
-    const phi1 =
-      mu +
-      ((3 * e1) / 2 - (27 * e1 * e1 * e1) / 32) * Math.sin(2 * mu) +
-      ((21 * e1 * e1) / 16 - (55 * e1 * e1 * e1 * e1) / 32) * Math.sin(4 * mu) +
-      ((151 * e1 * e1 * e1) / 96) * Math.sin(6 * mu);
-
-    const N1 = a / Math.sqrt(1 - e * e * Math.sin(phi1) * Math.sin(phi1));
-    const T1 = Math.tan(phi1) * Math.tan(phi1);
-    const C1 = ((e * e) / (1 - e * e)) * Math.cos(phi1) * Math.cos(phi1);
-    const R1 =
-      (a * (1 - e * e)) /
-      Math.pow(1 - e * e * Math.sin(phi1) * Math.sin(phi1), 1.5);
-    const D = x / (N1 * k0);
-
-    const lat =
-      phi1 -
-      ((N1 * Math.tan(phi1)) / R1) *
-        ((D * D) / 2 -
-          ((5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * (e * e / (1 - e * e))) *
-            D *
-            D *
-            D *
-            D) /
-            24 +
-          ((61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * (e * e / (1 - e * e)) - 3 * C1 * C1) *
-            D *
-            D *
-            D *
-            D *
-            D *
-            D) /
-            720);
-
-    const lng =
-      lng0 +
-      ((180 / Math.PI) *
-        (D -
-          ((1 + 2 * T1 + C1) * D * D * D) / 6 +
-          ((5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * (e * e / (1 - e * e)) + 24 * T1 * T1) *
-            D *
-            D *
-            D *
-            D *
-            D) /
-            120)) /
-      Math.cos(phi1);
-
-    return { lat: (lat * 180) / Math.PI, lng };
-  }
-
-  const sw = utmToLatLng(utmBounds.minX, utmBounds.minY);
-  const ne = utmToLatLng(utmBounds.maxX, utmBounds.maxY);
-
-  return {
-    minLng: sw.lng,
-    minLat: sw.lat,
-    maxLng: ne.lng,
-    maxLat: ne.lat,
-  };
 }
 
 /**
@@ -206,10 +113,9 @@ export async function fetchCOGIndex(): Promise<TileInfo[]> {
     if (year !== CONFIG.TARGET_YEAR) continue;
 
     try {
-      const utmBounds = parseWKTBounds(wkt);
+      const lngLatBounds = parseWKTBounds(wkt);
       const utmZone = extractUTMZoneFromCRS(crs);
       const httpsUrl = s3ToHttps(url);
-      const lngLatBounds = utmBoundsToLatLng(utmBounds, utmZone);
 
       tiles.push({
         wkt,
@@ -217,11 +123,11 @@ export async function fetchCOGIndex(): Promise<TileInfo[]> {
         url: httpsUrl,
         year,
         utmZone,
-        utmBounds,
+        utmBounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
         lngLatBounds,
       });
-    } catch (error) {
-      console.warn(`Skipping invalid tile entry: ${error}`);
+    } catch {
+      // Skip invalid entries silently
     }
   }
 
@@ -255,7 +161,6 @@ function pointInTile(lng: number, lat: number, tile: TileInfo): boolean {
 
 /**
  * Find the tile containing the center of a bounding box
- * Returns null if no tile found
  */
 export async function findTileForBoundingBox(
   bbox: BoundingBox
@@ -265,9 +170,9 @@ export async function findTileForBoundingBox(
   const centerLng = (bbox.minLng + bbox.maxLng) / 2;
   const centerLat = (bbox.minLat + bbox.maxLat) / 2;
 
-  // Ensure the bounding box is in a single UTM zone
   const minZone = getUTMZone(bbox.minLng);
   const maxZone = getUTMZone(bbox.maxLng);
+
   if (minZone !== maxZone) {
     throw new Error('Bounding box crosses UTM zone boundary');
   }
@@ -287,9 +192,10 @@ export async function findTileForBoundingBox(
  * Get tile origin in UTM coordinates (top-left corner)
  */
 export function getTileOrigin(tile: TileInfo): { x: number; y: number } {
+  const topLeftUTM = latLngToUTM(tile.lngLatBounds.maxLat, tile.lngLatBounds.minLng);
   return {
-    x: tile.utmBounds.minX,
-    y: tile.utmBounds.maxY, // Top edge (max Y in UTM)
+    x: topLeftUTM.easting,
+    y: topLeftUTM.northing,
   };
 }
 
