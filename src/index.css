@@ -1,0 +1,14 @@
+/* MapLibre GL CSS - imports must come first */
+@import 'maplibre-gl/dist/maplibre-gl.css';
+@import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Full height app */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
