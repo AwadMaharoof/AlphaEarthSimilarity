@@ -4,6 +4,95 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import { CONFIG } from '../constants'
 import type { BoundingBox } from '../types'
 
+// Custom styles for MapLibre compatibility (fixes line-dasharray issue)
+const drawStyles = [
+  // Polygon fill
+  {
+    id: 'gl-draw-polygon-fill',
+    type: 'fill',
+    filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+    paint: {
+      'fill-color': '#3bb2d0',
+      'fill-outline-color': '#3bb2d0',
+      'fill-opacity': 0.1,
+    },
+  },
+  // Polygon outline stroke (active)
+  {
+    id: 'gl-draw-polygon-stroke-active',
+    type: 'line',
+    filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+    paint: {
+      'line-color': '#3bb2d0',
+      'line-width': 2,
+    },
+  },
+  // Polygon outline stroke (static)
+  {
+    id: 'gl-draw-polygon-stroke-static',
+    type: 'line',
+    filter: ['all', ['==', '$type', 'Polygon'], ['==', 'mode', 'static']],
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+    paint: {
+      'line-color': '#404040',
+      'line-width': 2,
+    },
+  },
+  // Line stroke (active)
+  {
+    id: 'gl-draw-line-active',
+    type: 'line',
+    filter: ['all', ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+    paint: {
+      'line-color': '#3bb2d0',
+      'line-width': 2,
+    },
+  },
+  // Vertex points
+  {
+    id: 'gl-draw-polygon-and-line-vertex-active',
+    type: 'circle',
+    filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+    paint: {
+      'circle-radius': 5,
+      'circle-color': '#fff',
+      'circle-stroke-color': '#3bb2d0',
+      'circle-stroke-width': 2,
+    },
+  },
+  // Midpoint vertices
+  {
+    id: 'gl-draw-polygon-midpoint',
+    type: 'circle',
+    filter: ['all', ['==', 'meta', 'midpoint'], ['==', '$type', 'Point']],
+    paint: {
+      'circle-radius': 3,
+      'circle-color': '#3bb2d0',
+    },
+  },
+  // Point (active)
+  {
+    id: 'gl-draw-point-active',
+    type: 'circle',
+    filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'feature'], ['!=', 'mode', 'static']],
+    paint: {
+      'circle-radius': 6,
+      'circle-color': '#3bb2d0',
+    },
+  },
+]
+
 interface MapProps {
   onBoundingBoxChange: (box: BoundingBox | null) => void
   boundingBox: BoundingBox | null
@@ -72,7 +161,7 @@ export default function Map({ onBoundingBoxChange }: MapProps) {
       zoom: CONFIG.DEFAULT_ZOOM,
     })
 
-    // Initialize draw control
+    // Initialize draw control with custom styles for MapLibre compatibility
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
       controls: {
@@ -80,6 +169,7 @@ export default function Map({ onBoundingBoxChange }: MapProps) {
         trash: true,
       },
       defaultMode: 'draw_polygon',
+      styles: drawStyles,
     })
 
     // Add controls
