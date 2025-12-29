@@ -63,4 +63,34 @@ describe('COG Decoder', () => {
     expect(min).toBe(-128);
     expect(max).toBeLessThanOrEqual(127);
   }, 60000);
+
+  it('should correctly convert Uint8Array to Int8Array for signed interpretation', () => {
+    // This test verifies the fix for the validPixels: 0 bug
+    // geotiff returns Uint8Array, but embeddings are signed Int8
+
+    // Simulate what geotiff returns (unsigned bytes)
+    const uint8Data = new Uint8Array([128, 255, 0, 127, 1]);
+    // 128 unsigned = -128 signed (nodata)
+    // 255 unsigned = -1 signed
+    // 0 unsigned = 0 signed
+    // 127 unsigned = 127 signed
+    // 1 unsigned = 1 signed
+
+    // Wrong: just type casting (uint8Data as unknown as Int8Array) doesn't
+    // reinterpret bytes - at runtime values would still be unsigned
+
+    // Correct: create Int8Array view over the same buffer
+    const int8Data = new Int8Array(uint8Data.buffer, uint8Data.byteOffset, uint8Data.length);
+
+    expect(int8Data[0]).toBe(-128); // nodata value
+    expect(int8Data[1]).toBe(-1);
+    expect(int8Data[2]).toBe(0);
+    expect(int8Data[3]).toBe(127);
+    expect(int8Data[4]).toBe(1);
+
+    // Verify nodata detection works with signed interpretation
+    const NODATA = -128;
+    const hasNodata = Array.from(int8Data).some(v => v === NODATA);
+    expect(hasNodata).toBe(true);
+  });
 });

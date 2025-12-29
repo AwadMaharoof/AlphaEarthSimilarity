@@ -24,9 +24,9 @@ class ZstdDecoder extends BaseDecoder {
       const decompressed = zstdDecompress(compressed);
       const dataBuffer = new ArrayBuffer(decompressed.byteLength);
       new Uint8Array(dataBuffer).set(decompressed);
-      return new Int8Array(dataBuffer);
+      return dataBuffer;
     }
-    return new Int8Array(buffer);
+    return buffer;
   }
 }
 
@@ -91,7 +91,9 @@ export function useCOGLoader(): UseCOGLoaderResult {
         interleave: true,
       });
 
-      const rawData = rasterData as unknown as Int8Array;
+      // Convert to Int8Array (geotiff returns Uint8Array, we need signed interpretation)
+      const rasterArray = rasterData as unknown as Uint8Array;
+      const rawData = new Int8Array(rasterArray.buffer, rasterArray.byteOffset, rasterArray.length);
 
       const flippedData = flipVertical(
         rawData,
