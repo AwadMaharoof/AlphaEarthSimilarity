@@ -30,13 +30,3 @@ export function flipVertical<T extends Int8Array | Float32Array>(
   return result;
 }
 
-/**
- * Flip a single-band raster vertically
- */
-export function flipVerticalSingleBand<T extends Int8Array | Float32Array>(
-  data: T,
-  width: number,
-  height: number
-): T {
-  return flipVertical(data, width, height, 1);
-}

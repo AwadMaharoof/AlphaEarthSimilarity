@@ -23,7 +23,7 @@ interface UseSimilarityResult {
  * Calculate similarity between reference vector and all pixels using dot product.
  * Since embeddings are pre-normalized to unit length, dot product = cosine similarity.
  */
-export function calculateSimilarityScores(
+function calculateSimilarityScores(
   embeddings: Float32Array,
   mask: boolean[],
   refVector: Float32Array,
@@ -100,7 +100,7 @@ export function useSimilarity(): UseSimilarityResult {
           setIsCalculating(false);
           return {
             success: false,
-            error: 'Click is outside the loaded embedding region',
+            error: 'Click outside loaded area. Please click within the bounding box.',
           };
         }
 
@@ -110,7 +110,7 @@ export function useSimilarity(): UseSimilarityResult {
           setIsCalculating(false);
           return {
             success: false,
-            error: 'Selected pixel has no valid data (masked)',
+            error: 'No data for this pixel (cloud, water, or masked area). Try clicking a different location.',
           };
         }
 

@@ -3,9 +3,8 @@
  * Maps values in [0, 1] to RGB colors using the Viridis perceptually uniform colormap
  */
 
-export type RGB = [number, number, number];
-export type RGBA = [number, number, number, number];
-export type ColorStop = [number, RGB];
+type RGB = [number, number, number];
+type ColorStop = [number, RGB];
 
 // Viridis color stops (value, [r, g, b])
 const VIRIDIS_STOPS: ColorStop[] = [

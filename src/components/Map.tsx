@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import { CONFIG } from '../constants'
-import type { BoundingBox } from '../types'
+import { createSquareBbox } from '../utils/coordinates'
+import type { BoundingBox, AreaMode, AreaSize } from '../types'
 
 // Custom styles for MapLibre compatibility (fixes line-dasharray issue)
 const drawStyles = [
@@ -93,28 +94,71 @@ const drawStyles = [
   },
 ]
 
+// Source and layer IDs for click-to-place square
+const SQUARE_SOURCE_ID = 'click-square-source'
+const SQUARE_FILL_LAYER_ID = 'click-square-fill'
+const SQUARE_OUTLINE_LAYER_ID = 'click-square-outline'
+
+export interface DrawControls {
+  startDrawing: () => void
+  clearDrawing: () => void
+}
+
 interface MapProps {
   onBoundingBoxChange: (box: BoundingBox | null) => void
   boundingBox: BoundingBox | null
   onMapClick?: (lng: number, lat: number) => void
   isClickEnabled?: boolean
   mapRef?: React.MutableRefObject<maplibregl.Map | null>
+  drawControlsRef?: React.MutableRefObject<DrawControls | null>
+  areaMode: AreaMode
+  areaSize: AreaSize
+  isAreaSelectionEnabled: boolean
+}
+
+/**
+ * Convert bounding box to GeoJSON polygon
+ */
+function bboxToGeoJSON(bbox: BoundingBox): GeoJSON.Feature<GeoJSON.Polygon> {
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [bbox.minLng, bbox.minLat],
+        [bbox.maxLng, bbox.minLat],
+        [bbox.maxLng, bbox.maxLat],
+        [bbox.minLng, bbox.maxLat],
+        [bbox.minLng, bbox.minLat],
+      ]],
+    },
+  }
 }
 
 export default function Map({
   onBoundingBoxChange,
+  boundingBox,
   onMapClick,
   isClickEnabled = false,
   mapRef,
+  drawControlsRef,
+  areaMode,
+  areaSize,
+  isAreaSelectionEnabled,
 }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const draw = useRef<MapboxDraw | null>(null)
+  const squareLayersAdded = useRef(false)
 
   // Use refs to always have access to latest callbacks without re-registering listeners
   const onBoundingBoxChangeRef = useRef(onBoundingBoxChange)
   const onMapClickRef = useRef(onMapClick)
   const isClickEnabledRef = useRef(isClickEnabled)
+  const areaModeRef = useRef(areaMode)
+  const areaSizeRef = useRef(areaSize)
+  const isAreaSelectionEnabledRef = useRef(isAreaSelectionEnabled)
 
   // Keep refs in sync with props
   useEffect(() => {
@@ -129,6 +173,18 @@ export default function Map({
     isClickEnabledRef.current = isClickEnabled
   }, [isClickEnabled])
 
+  useEffect(() => {
+    areaModeRef.current = areaMode
+  }, [areaMode])
+
+  useEffect(() => {
+    areaSizeRef.current = areaSize
+  }, [areaSize])
+
+  useEffect(() => {
+    isAreaSelectionEnabledRef.current = isAreaSelectionEnabled
+  }, [isAreaSelectionEnabled])
+
   const extractBoundingBox = useCallback((feature: GeoJSON.Feature): BoundingBox | null => {
     if (feature.geometry.type !== 'Polygon') return null
 
@@ -141,6 +197,65 @@ export default function Map({
       minLat: Math.min(...lats),
       maxLng: Math.max(...lngs),
       maxLat: Math.max(...lats),
+    }
+  }, [])
+
+  /**
+   * Add GeoJSON source and layers for displaying click-to-place square
+   */
+  const ensureSquareLayers = useCallback(() => {
+    if (!map.current || squareLayersAdded.current) return
+
+    // Add empty source
+    map.current.addSource(SQUARE_SOURCE_ID, {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: [],
+      },
+    })
+
+    // Add fill layer
+    map.current.addLayer({
+      id: SQUARE_FILL_LAYER_ID,
+      type: 'fill',
+      source: SQUARE_SOURCE_ID,
+      paint: {
+        'fill-color': '#3bb2d0',
+        'fill-opacity': 0.1,
+      },
+    })
+
+    // Add outline layer
+    map.current.addLayer({
+      id: SQUARE_OUTLINE_LAYER_ID,
+      type: 'line',
+      source: SQUARE_SOURCE_ID,
+      paint: {
+        'line-color': '#3bb2d0',
+        'line-width': 2,
+      },
+    })
+
+    squareLayersAdded.current = true
+  }, [])
+
+  /**
+   * Update the click-to-place square on the map
+   */
+  const updateSquareLayer = useCallback((bbox: BoundingBox | null) => {
+    if (!map.current || !squareLayersAdded.current) return
+
+    const source = map.current.getSource(SQUARE_SOURCE_ID) as maplibregl.GeoJSONSource
+    if (!source) return
+
+    if (bbox) {
+      source.setData(bboxToGeoJSON(bbox))
+    } else {
+      source.setData({
+        type: 'FeatureCollection',
+        features: [],
+      })
     }
   }, [])
 
@@ -163,12 +278,14 @@ export default function Map({
         polygon: true,
         trash: true,
       },
-      defaultMode: 'draw_polygon',
+      defaultMode: 'simple_select',
       styles: drawStyles,
     })
 
-    // Add controls
+    // Add navigation control
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right')
+
+    // Add draw control (initially hidden via CSS based on mode)
     map.current.addControl(draw.current as unknown as maplibregl.IControl, 'top-left')
 
     // Set up draw event listeners using refs to avoid stale closures
@@ -186,7 +303,7 @@ export default function Map({
       }
 
       const feature = e.features[0]
-      if (feature) {
+      if (feature && areaModeRef.current === 'draw') {
         const box = extractBoundingBox(feature)
         onBoundingBoxChangeRef.current(box)
       }
@@ -194,47 +311,122 @@ export default function Map({
 
     map.current.on('draw.update', (e: { features: GeoJSON.Feature[] }) => {
       const feature = e.features[0]
-      if (feature) {
+      if (feature && areaModeRef.current === 'draw') {
         const box = extractBoundingBox(feature)
         onBoundingBoxChangeRef.current(box)
       }
     })
 
     map.current.on('draw.delete', () => {
-      onBoundingBoxChangeRef.current(null)
+      if (areaModeRef.current === 'draw') {
+        onBoundingBoxChangeRef.current(null)
+      }
     })
 
-    // Set up click handler using ref
+    // Set up click handler for both click-to-place and reference pixel selection
     map.current.on('click', (e: maplibregl.MapMouseEvent) => {
-      if (!isClickEnabledRef.current || !onMapClickRef.current) return
-      onMapClickRef.current(e.lngLat.lng, e.lngLat.lat)
+      const { lng, lat } = e.lngLat
+
+      // Handle click-to-place area selection
+      if (isAreaSelectionEnabledRef.current && areaModeRef.current === 'click') {
+        const bbox = createSquareBbox(lat, lng, areaSizeRef.current)
+        onBoundingBoxChangeRef.current(bbox)
+        return
+      }
+
+      // Handle reference pixel selection
+      if (isClickEnabledRef.current && onMapClickRef.current) {
+        onMapClickRef.current(lng, lat)
+      }
     })
+
+    // Add square layers when style loads
+    map.current.on('style.load', () => {
+      ensureSquareLayers()
+    })
+
+    // Also try adding immediately in case style already loaded
+    if (map.current.isStyleLoaded()) {
+      ensureSquareLayers()
+    }
 
     // Expose map instance if ref provided
     if (mapRef) {
       mapRef.current = map.current
     }
 
+    // Expose draw controls
+    if (drawControlsRef) {
+      drawControlsRef.current = {
+        startDrawing: () => {
+          if (draw.current) {
+            draw.current.changeMode('draw_polygon')
+          }
+        },
+        clearDrawing: () => {
+          if (draw.current) {
+            draw.current.deleteAll()
+            onBoundingBoxChangeRef.current(null)
+          }
+        },
+      }
+    }
+
+    // Hide the external draw controls - we control drawing from the wizard
+    const hideDrawControls = () => {
+      const drawControls = document.querySelector('.mapboxgl-ctrl-group.mapboxgl-ctrl') as HTMLElement
+      if (drawControls) {
+        drawControls.style.display = 'none'
+      }
+    }
+    hideDrawControls()
+    // Also hide after a short delay in case they appear later
+    setTimeout(hideDrawControls, 100)
+
     return () => {
       if (mapRef) {
         mapRef.current = null
       }
+      if (drawControlsRef) {
+        drawControlsRef.current = null
+      }
       map.current?.remove()
       map.current = null
       draw.current = null
+      squareLayersAdded.current = false
     }
-  }, [extractBoundingBox, mapRef])
+  }, [extractBoundingBox, mapRef, drawControlsRef, ensureSquareLayers])
 
-  // Update cursor based on click enabled state
+  // Update square layer when boundingBox changes (for click mode)
+  useEffect(() => {
+    if (areaMode === 'click') {
+      updateSquareLayer(boundingBox)
+    }
+  }, [boundingBox, areaMode, updateSquareLayer])
+
+  // Clear draw features when switching to click mode
+  useEffect(() => {
+    if (areaMode === 'click' && draw.current) {
+      draw.current.deleteAll()
+    }
+    if (areaMode === 'draw') {
+      updateSquareLayer(null)
+    }
+  }, [areaMode, updateSquareLayer])
+
+
+  // Update cursor based on state
   useEffect(() => {
     if (!map.current) return
 
     if (isClickEnabled) {
       map.current.getCanvas().style.cursor = 'crosshair'
+    } else if (isAreaSelectionEnabled && areaMode === 'click') {
+      map.current.getCanvas().style.cursor = 'crosshair'
     } else {
       map.current.getCanvas().style.cursor = ''
     }
-  }, [isClickEnabled])
+  }, [isClickEnabled, isAreaSelectionEnabled, areaMode])
 
   return (
     <div

@@ -49,7 +49,7 @@ function decodeField(value: string | Uint8Array): string {
 /**
  * Fetch and parse the COG index from GeoParquet
  */
-export async function fetchCOGIndex(): Promise<TileInfo[]> {
+async function fetchCOGIndex(): Promise<TileInfo[]> {
   if (cachedTiles) {
     return cachedTiles;
   }

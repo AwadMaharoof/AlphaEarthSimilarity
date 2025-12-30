@@ -1,36 +1,56 @@
 import { useState, useCallback, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
-import Map from './components/Map'
-import ControlPanel from './components/ControlPanel'
+import Map, { DrawControls } from './components/Map'
+import WizardPanel from './components/WizardPanel'
 import ReferenceMarker from './components/ReferenceMarker'
 import ResultsOverlay from './components/ResultsOverlay'
-import ThresholdSlider from './components/ThresholdSlider'
 import { useBoundingBox } from './hooks/useBoundingBox'
 import { useCOGLoader } from './hooks/useCOGLoader'
 import { useSimilarity } from './hooks/useSimilarity'
-import type { AppState, BoundingBox } from './types'
+import { useDebounce } from './hooks/useDebounce'
+import { useWizard } from './hooks/useWizard'
+import type { BoundingBox } from './types'
 
 function App() {
-  const [appState, setAppState] = useState<AppState>('idle')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const drawControlsRef = useRef<DrawControls | null>(null)
+
+  // Wizard state
+  const {
+    state: wizardState,
+    setMode,
+    setSize,
+    areaSelected,
+    loadingStarted,
+    dataLoaded,
+    referenceSelected,
+    setError,
+    clearError,
+    back,
+    reset,
+  } = useWizard()
 
   // Visualization settings
   const [threshold, setThreshold] = useState(0.7)
   const [binaryMask, setBinaryMask] = useState(false)
   const [opacity, setOpacity] = useState(0.8)
 
+  // Debounce threshold to avoid excessive re-renders during slider drag
+  const debouncedThreshold = useDebounce(threshold, 50)
+
   const {
     boundingBox,
     setBoundingBox,
     validationError,
-    isValid,
   } = useBoundingBox()
 
   const {
     loadEmbeddings,
     embeddingData,
     currentTile,
+    loadingProgress,
+    isLoading,
+    clearEmbeddings,
   } = useCOGLoader()
 
   const {
@@ -38,62 +58,66 @@ function App() {
     similarityResult,
     selectReferencePixel,
     clearReference,
-    isCalculating,
   } = useSimilarity()
 
+  // Handle area selection (both click-to-place and draw modes)
   const handleBoundingBoxChange = useCallback((box: BoundingBox | null) => {
     setBoundingBox(box)
-    clearReference() // Clear any previous reference when box changes
-    if (box) {
-      setAppState('drawing')
-    } else {
-      setAppState('idle')
+    clearError()
+
+    if (box && wizardState.step === 1) {
+      // Auto-advance to step 2 when area is selected
+      areaSelected()
     }
-    setErrorMessage(null)
-  }, [setBoundingBox, clearReference])
+  }, [setBoundingBox, clearError, wizardState.step, areaSelected])
 
+  // Handle loading embeddings
   const handleLoadEmbeddings = useCallback(async () => {
-    if (!boundingBox || !isValid) return
+    if (!boundingBox) return
 
-    setAppState('loading')
-    setErrorMessage(null)
+    loadingStarted()
 
     try {
-      const data = await loadEmbeddings(boundingBox)
-      console.log('Loaded embeddings:', {
-        width: data.width,
-        height: data.height,
-        totalPixels: data.width * data.height,
-        validPixels: data.mask.filter(Boolean).length,
-      })
-      setAppState('ready')
+      await loadEmbeddings(boundingBox)
+      dataLoaded()
     } catch (error) {
-      setAppState('error')
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to load embeddings')
+      setError(error instanceof Error ? error.message : 'Failed to load embeddings')
     }
-  }, [boundingBox, isValid, loadEmbeddings])
+  }, [boundingBox, loadEmbeddings, loadingStarted, dataLoaded, setError])
 
+  // Handle reference pixel selection
   const handleMapClick = useCallback((lng: number, lat: number) => {
-    if (!embeddingData || !currentTile) return
-
-    setAppState('calculating')
-    setErrorMessage(null)
+    if (!embeddingData || !currentTile || wizardState.step !== 3) return
 
     const result = selectReferencePixel(lng, lat, embeddingData, currentTile)
 
     if (result.success) {
-      console.log('Similarity calculated:', {
-        referenceLocation: { lng, lat },
-      })
-      setAppState('ready')
+      referenceSelected()
     } else {
-      setAppState('ready') // Stay in ready state to allow retry
-      setErrorMessage(result.error || 'Failed to select reference pixel')
+      setError(result.error || 'Failed to select reference pixel')
     }
-  }, [embeddingData, currentTile, selectReferencePixel])
+  }, [embeddingData, currentTile, wizardState.step, selectReferencePixel, referenceSelected, setError])
 
-  // Determine if click is enabled (only when embeddings are loaded)
-  const isClickEnabled = appState === 'ready' && embeddingData !== null && !isCalculating
+  // Handle back button
+  const handleBack = useCallback(() => {
+    if (wizardState.step === 4) {
+      // Go back to step 3 (select new reference)
+      clearReference()
+    }
+    back()
+  }, [wizardState.step, clearReference, back])
+
+  // Handle reset (start over)
+  const handleReset = useCallback(() => {
+    setBoundingBox(null)
+    clearReference()
+    clearEmbeddings()
+    reset()
+  }, [setBoundingBox, clearReference, clearEmbeddings, reset])
+
+  // Determine click states
+  const isAreaSelectionEnabled = wizardState.step === 1
+  const isReferenceSelectionEnabled = wizardState.step === 3 && embeddingData !== null
 
   return (
     <div className="h-full flex flex-col">
@@ -101,8 +125,12 @@ function App() {
         onBoundingBoxChange={handleBoundingBoxChange}
         boundingBox={boundingBox}
         onMapClick={handleMapClick}
-        isClickEnabled={isClickEnabled}
+        isClickEnabled={isReferenceSelectionEnabled}
         mapRef={mapRef}
+        drawControlsRef={drawControlsRef}
+        areaMode={wizardState.areaMode}
+        areaSize={wizardState.areaSize}
+        isAreaSelectionEnabled={isAreaSelectionEnabled}
       />
       <ReferenceMarker
         map={mapRef.current}
@@ -111,34 +139,31 @@ function App() {
       <ResultsOverlay
         map={mapRef.current}
         similarityResult={similarityResult}
-        threshold={threshold}
+        threshold={debouncedThreshold}
         binaryMask={binaryMask}
         opacity={opacity}
       />
-      <ControlPanel
-        appState={appState}
+      <WizardPanel
+        wizard={wizardState}
+        onSetMode={setMode}
+        onSetSize={setSize}
+        onBack={handleBack}
+        onReset={handleReset}
         boundingBox={boundingBox}
-        isValid={isValid}
         validationError={validationError}
-        errorMessage={errorMessage}
         onLoadEmbeddings={handleLoadEmbeddings}
+        loadingProgress={loadingProgress}
+        isLoading={isLoading}
         referencePixel={referencePixel}
         similarityResult={similarityResult}
+        threshold={threshold}
+        onThresholdChange={setThreshold}
+        binaryMask={binaryMask}
+        onBinaryMaskChange={setBinaryMask}
+        opacity={opacity}
+        onOpacityChange={setOpacity}
+        drawControls={drawControlsRef.current}
       />
-      {/* Threshold controls - only show when similarity results are available */}
-      {similarityResult && (
-        <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 w-64">
-          <div className="text-sm font-medium text-gray-700 mb-3">Visualization</div>
-          <ThresholdSlider
-            threshold={threshold}
-            onThresholdChange={setThreshold}
-            binaryMask={binaryMask}
-            onBinaryMaskChange={setBinaryMask}
-            opacity={opacity}
-            onOpacityChange={setOpacity}
-          />
-        </div>
-      )}
     </div>
   )
 }

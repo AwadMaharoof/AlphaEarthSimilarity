@@ -50,7 +50,34 @@ export interface SimilarityResult {
   bounds: BoundingBox;
 }
 
-export type AppState = 'idle' | 'drawing' | 'loading' | 'ready' | 'calculating' | 'error';
 
-export type RGB = [number, number, number];
-export type ColorStop = [number, RGB];
+// Wizard types
+export type WizardStep = 1 | 2 | 3 | 4;
+export type AreaMode = 'click' | 'draw';
+export type AreaSize = 1 | 2 | 4; // km
+
+export interface WizardState {
+  step: WizardStep;
+  areaMode: AreaMode;
+  areaSize: AreaSize;
+  error: string | null;
+}
+
+export type WizardAction =
+  | { type: 'SET_MODE'; mode: AreaMode }
+  | { type: 'SET_SIZE'; size: AreaSize }
+  | { type: 'AREA_SELECTED' }
+  | { type: 'LOADING_STARTED' }
+  | { type: 'DATA_LOADED' }
+  | { type: 'REFERENCE_SELECTED' }
+  | { type: 'SET_ERROR'; error: string }
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'BACK' }
+  | { type: 'RESET' };
+
+// Loading progress
+export interface LoadingProgress {
+  step: number;
+  totalSteps: number;
+  message: string;
+}

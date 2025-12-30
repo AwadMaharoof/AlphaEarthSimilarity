@@ -186,15 +186,32 @@ export function bboxToPixelWindow(
 }
 
 /**
- * Parse UTM zone string (e.g., "10N" or "10S") into zone number and hemisphere
+ * Create a square bounding box centered on a point
+ *
+ * @param centerLat - Center latitude
+ * @param centerLng - Center longitude
+ * @param sizeKm - Side length of the square in kilometers
+ * @returns BoundingBox centered on the given point
  */
-export function parseUTMZone(zoneStr: string): { zone: number; hemisphere: 'N' | 'S' } {
-  const match = zoneStr.match(/^(\d+)([NS])$/i);
-  if (!match) {
-    throw new Error(`Invalid UTM zone format: ${zoneStr}`);
-  }
+export function createSquareBbox(
+  centerLat: number,
+  centerLng: number,
+  sizeKm: number
+): BoundingBox {
+  // Half the size in km
+  const halfSize = sizeKm / 2;
+
+  // Latitude offset (1 degree ≈ 111km)
+  const latOffset = halfSize / 111;
+
+  // Longitude offset (varies with latitude)
+  // 1 degree longitude = 111km * cos(latitude)
+  const lngOffset = halfSize / (111 * Math.cos(toRad(centerLat)));
+
   return {
-    zone: parseInt(match[1], 10),
-    hemisphere: match[2].toUpperCase() as 'N' | 'S',
+    minLat: centerLat - latOffset,
+    maxLat: centerLat + latOffset,
+    minLng: centerLng - lngOffset,
+    maxLng: centerLng + lngOffset,
   };
 }
