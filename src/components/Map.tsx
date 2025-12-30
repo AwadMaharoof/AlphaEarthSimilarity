@@ -269,6 +269,7 @@ export default function Map({
       style: CONFIG.BASEMAP_URL,
       center: CONFIG.DEFAULT_CENTER,
       zoom: CONFIG.DEFAULT_ZOOM,
+      attributionControl: false,
     })
 
     // Initialize draw control with custom styles for MapLibre compatibility
@@ -284,6 +285,14 @@ export default function Map({
 
     // Add navigation control
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right')
+
+    // Add attribution control with AlphaEarth dataset credit
+    map.current.addControl(
+      new maplibregl.AttributionControl({
+        customAttribution: '<a href="https://source.coop/tge-labs/aef" target="_blank">AlphaEarth embeddings</a> by Google (CC-BY 4.0)',
+      }),
+      'bottom-right'
+    )
 
     // Add draw control (initially hidden via CSS based on mode)
     map.current.addControl(draw.current as unknown as maplibregl.IControl, 'top-left')

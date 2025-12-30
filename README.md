@@ -53,6 +53,10 @@ npm run build
 - [Google Earth Engine Similarity Tutorial](https://developers.google.com/earth-engine/tutorials/community/satellite-embedding-05-similarity-search)
 - [Satellite Embedding Introduction](https://developers.google.com/earth-engine/tutorials/community/satellite-embedding-01-introduction)
 
+## Data License
+
+The [AlphaEarth Foundations Satellite Embedding dataset](https://source.coop/tge-labs/aef) is produced by Google and Google DeepMind and is licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## License
 
 MIT

@@ -177,6 +177,10 @@ export default function WizardPanel({
               Ready to load satellite embedding data for the selected area.
             </p>
 
+            <div className="text-xs text-gray-500 bg-amber-50 p-2 rounded border border-amber-200">
+              Using 2024 satellite embeddings. Note: basemap imagery date may differ.
+            </div>
+
             {/* Bounding box summary */}
             {boundingBox && (
               <div className="text-xs text-gray-600 font-mono bg-gray-50 p-2 rounded">
