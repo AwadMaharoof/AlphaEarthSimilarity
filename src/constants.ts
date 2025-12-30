@@ -9,6 +9,9 @@ export const CONFIG = {
   MAX_BOX_SIZE_KM: 5,
   EMBEDDING_BANDS: 64,
 
+  // Pixel resolution in meters (AlphaEarth embeddings are 10m resolution)
+  PIXEL_SIZE: 10,
+
   // Default map view (Singapore - covered by 2024 data)
   DEFAULT_CENTER: [103.84, 1.28] as [number, number],
   DEFAULT_ZOOM: 10,

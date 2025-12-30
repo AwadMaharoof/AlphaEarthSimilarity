@@ -68,21 +68,16 @@ export default function ResultsOverlay({
     ];
   }, [imageData, similarityResult]);
 
-  // Initialize and update the deck.gl overlay
+  // Initialize the deck.gl overlay once when map is available
   useEffect(() => {
     if (!map) return;
 
-    // Create overlay if it doesn't exist
-    if (!overlayRef.current) {
-      overlayRef.current = new MapboxOverlay({
-        interleaved: true,
-        layers: [],
-      });
-      map.addControl(overlayRef.current as unknown as maplibregl.IControl);
-    }
-
-    // Update layers
-    overlayRef.current.setProps({ layers });
+    // Create overlay only once
+    overlayRef.current = new MapboxOverlay({
+      interleaved: true,
+      layers: [],
+    });
+    map.addControl(overlayRef.current as unknown as maplibregl.IControl);
 
     return () => {
       if (overlayRef.current && map) {
@@ -94,7 +89,14 @@ export default function ResultsOverlay({
         overlayRef.current = null;
       }
     };
-  }, [map, layers]);
+  }, [map]);
+
+  // Update layers when they change
+  useEffect(() => {
+    if (overlayRef.current) {
+      overlayRef.current.setProps({ layers });
+    }
+  }, [layers]);
 
   // This component doesn't render anything directly
   return null;

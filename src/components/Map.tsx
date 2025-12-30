@@ -111,6 +111,24 @@ export default function Map({
   const map = useRef<maplibregl.Map | null>(null)
   const draw = useRef<MapboxDraw | null>(null)
 
+  // Use refs to always have access to latest callbacks without re-registering listeners
+  const onBoundingBoxChangeRef = useRef(onBoundingBoxChange)
+  const onMapClickRef = useRef(onMapClick)
+  const isClickEnabledRef = useRef(isClickEnabled)
+
+  // Keep refs in sync with props
+  useEffect(() => {
+    onBoundingBoxChangeRef.current = onBoundingBoxChange
+  }, [onBoundingBoxChange])
+
+  useEffect(() => {
+    onMapClickRef.current = onMapClick
+  }, [onMapClick])
+
+  useEffect(() => {
+    isClickEnabledRef.current = isClickEnabled
+  }, [isClickEnabled])
+
   const extractBoundingBox = useCallback((feature: GeoJSON.Feature): BoundingBox | null => {
     if (feature.geometry.type !== 'Polygon') return null
 
@@ -126,43 +144,7 @@ export default function Map({
     }
   }, [])
 
-  const handleDrawCreate = useCallback((e: { features: GeoJSON.Feature[] }) => {
-    // Only keep the latest drawn feature
-    const allFeatures = draw.current?.getAll()
-    if (allFeatures && allFeatures.features.length > 1) {
-      const idsToDelete = allFeatures.features
-        .slice(0, -1)
-        .map(f => f.id)
-        .filter((id): id is string => typeof id === 'string')
-      if (idsToDelete.length > 0) {
-        draw.current?.delete(idsToDelete)
-      }
-    }
-
-    const feature = e.features[0]
-    if (feature) {
-      const box = extractBoundingBox(feature)
-      onBoundingBoxChange(box)
-    }
-  }, [extractBoundingBox, onBoundingBoxChange])
-
-  const handleDrawUpdate = useCallback((e: { features: GeoJSON.Feature[] }) => {
-    const feature = e.features[0]
-    if (feature) {
-      const box = extractBoundingBox(feature)
-      onBoundingBoxChange(box)
-    }
-  }, [extractBoundingBox, onBoundingBoxChange])
-
-  const handleDrawDelete = useCallback(() => {
-    onBoundingBoxChange(null)
-  }, [onBoundingBoxChange])
-
-  const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
-    if (!isClickEnabled || !onMapClick) return
-    onMapClick(e.lngLat.lng, e.lngLat.lat)
-  }, [isClickEnabled, onMapClick])
-
+  // Initialize map once on mount
   useEffect(() => {
     if (!mapContainer.current || map.current) return
 
@@ -189,10 +171,44 @@ export default function Map({
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.current.addControl(draw.current as unknown as maplibregl.IControl, 'top-left')
 
-    // Set up event listeners
-    map.current.on('draw.create', handleDrawCreate)
-    map.current.on('draw.update', handleDrawUpdate)
-    map.current.on('draw.delete', handleDrawDelete)
+    // Set up draw event listeners using refs to avoid stale closures
+    map.current.on('draw.create', (e: { features: GeoJSON.Feature[] }) => {
+      // Only keep the latest drawn feature
+      const allFeatures = draw.current?.getAll()
+      if (allFeatures && allFeatures.features.length > 1) {
+        const idsToDelete = allFeatures.features
+          .slice(0, -1)
+          .map(f => f.id)
+          .filter((id): id is string => typeof id === 'string')
+        if (idsToDelete.length > 0) {
+          draw.current?.delete(idsToDelete)
+        }
+      }
+
+      const feature = e.features[0]
+      if (feature) {
+        const box = extractBoundingBox(feature)
+        onBoundingBoxChangeRef.current(box)
+      }
+    })
+
+    map.current.on('draw.update', (e: { features: GeoJSON.Feature[] }) => {
+      const feature = e.features[0]
+      if (feature) {
+        const box = extractBoundingBox(feature)
+        onBoundingBoxChangeRef.current(box)
+      }
+    })
+
+    map.current.on('draw.delete', () => {
+      onBoundingBoxChangeRef.current(null)
+    })
+
+    // Set up click handler using ref
+    map.current.on('click', (e: maplibregl.MapMouseEvent) => {
+      if (!isClickEnabledRef.current || !onMapClickRef.current) return
+      onMapClickRef.current(e.lngLat.lng, e.lngLat.lat)
+    })
 
     // Expose map instance if ref provided
     if (mapRef) {
@@ -207,25 +223,18 @@ export default function Map({
       map.current = null
       draw.current = null
     }
-  }, [handleDrawCreate, handleDrawUpdate, handleDrawDelete, mapRef])
+  }, [extractBoundingBox, mapRef])
 
-  // Handle click events separately to manage enabled/disabled state
+  // Update cursor based on click enabled state
   useEffect(() => {
     if (!map.current) return
 
-    map.current.on('click', handleMapClick)
-
-    // Update cursor based on click enabled state
     if (isClickEnabled) {
       map.current.getCanvas().style.cursor = 'crosshair'
     } else {
       map.current.getCanvas().style.cursor = ''
     }
-
-    return () => {
-      map.current?.off('click', handleMapClick)
-    }
-  }, [handleMapClick, isClickEnabled])
+  }, [isClickEnabled])
 
   return (
     <div

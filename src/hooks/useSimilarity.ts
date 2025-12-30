@@ -3,6 +3,7 @@ import { EmbeddingData, ReferencePixel, SimilarityResult } from '../types';
 import { latLngToPixel } from '../utils/coordinates';
 import { extractEmbeddingVector } from '../utils/dequantize';
 import { getTileOrigin } from '../utils/cogIndex';
+import { CONFIG } from '../constants';
 import type { TileInfo } from '../types';
 
 interface UseSimilarityResult {
@@ -71,7 +72,7 @@ export function useSimilarity(): UseSimilarityResult {
       try {
         // Convert click coordinates to pixel coordinates in native COG order
         const origin = getTileOrigin(tile);
-        const pixelCoord = latLngToPixel(lat, lng, origin.x, origin.y, 10);
+        const pixelCoord = latLngToPixel(lat, lng, origin.x, origin.y, CONFIG.PIXEL_SIZE);
 
         // Calculate the SW corner of the window (smallest pixel coords in native order)
         const windowSW = latLngToPixel(
@@ -79,7 +80,7 @@ export function useSimilarity(): UseSimilarityResult {
           embeddingData.bounds.minLng,
           origin.x,
           origin.y,
-          10
+          CONFIG.PIXEL_SIZE
         );
 
         // Local coordinates in native COG order (row 0 = south)

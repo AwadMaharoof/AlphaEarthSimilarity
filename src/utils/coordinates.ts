@@ -1,4 +1,5 @@
 import { UTMCoord, PixelCoord, BoundingBox } from '../types';
+import { CONFIG } from '../constants';
 
 /**
  * Convert degrees to radians
@@ -59,7 +60,7 @@ export function latLngToUTM(lat: number, lng: number): UTMCoord {
         Math.sin(4 * latRad) -
       ((35 * e2 * e2 * e2) / 3072) * Math.sin(6 * latRad));
 
-  let easting =
+  const easting =
     k0 *
       N *
       (A +
@@ -114,7 +115,7 @@ export function utmToPixel(
   utm: UTMCoord,
   tileOriginX: number,
   tileOriginY: number,
-  pixelSize: number = 10
+  pixelSize: number = CONFIG.PIXEL_SIZE
 ): PixelCoord {
   // X increases to the right (east)
   const x = Math.floor((utm.easting - tileOriginX) / pixelSize);
@@ -133,7 +134,7 @@ export function latLngToPixel(
   lng: number,
   tileOriginX: number,
   tileOriginY: number,
-  pixelSize: number = 10
+  pixelSize: number = CONFIG.PIXEL_SIZE
 ): PixelCoord {
   const utm = latLngToUTM(lat, lng);
   return utmToPixel(utm, tileOriginX, tileOriginY, pixelSize);
@@ -156,7 +157,7 @@ export function bboxToPixelWindow(
   bbox: BoundingBox,
   tileOriginX: number,
   tileOriginY: number,
-  pixelSize: number = 10
+  pixelSize: number = CONFIG.PIXEL_SIZE
 ): [number, number, number, number] {
   // SW corner of bbox (minLat, minLng) - this gives the smallest pixel coords
   const sw = latLngToPixel(

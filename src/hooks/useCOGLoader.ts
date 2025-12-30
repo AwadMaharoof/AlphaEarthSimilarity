@@ -71,12 +71,11 @@ export function useCOGLoader(): UseCOGLoaderResult {
       setCurrentTile(tile);
 
       const origin = getTileOrigin(tile);
-      const pixelSize = 10;
       const [windowX, windowY, windowWidth, windowHeight] = bboxToPixelWindow(
         bbox,
         origin.x,
         origin.y,
-        pixelSize
+        CONFIG.PIXEL_SIZE
       );
 
       if (windowWidth <= 0 || windowHeight <= 0) {

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { BoundingBox } from '../types'
 import { CONFIG } from '../constants'
+import { getUTMZone } from '../utils/coordinates'
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -27,14 +28,6 @@ function haversineDistance(
 
 function toRad(deg: number): number {
   return deg * (Math.PI / 180)
-}
-
-/**
- * Get UTM zone number from longitude
- * Zones are 6 degrees wide, numbered 1-60
- */
-function getUTMZone(lng: number): number {
-  return Math.floor((lng + 180) / 6) + 1
 }
 
 interface UseBoundingBoxReturn {

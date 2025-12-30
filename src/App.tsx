@@ -31,7 +31,6 @@ function App() {
     loadEmbeddings,
     embeddingData,
     currentTile,
-    isLoading: _isCOGLoading,
   } = useCOGLoader()
 
   const {
