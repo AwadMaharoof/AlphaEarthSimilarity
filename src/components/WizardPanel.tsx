@@ -154,27 +154,14 @@ export default function WizardPanel({
               </div>
             )}
 
-            {/* Draw controls (only for draw mode) */}
-            {areaMode === 'draw' && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => drawControls?.startDrawing()}
-                  className="flex-1 py-2 px-3 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                >
-                  Draw Shape
-                </button>
-                <button
-                  onClick={() => drawControls?.clearDrawing()}
-                  disabled={!boundingBox}
-                  className={`py-2 px-3 text-sm font-medium rounded transition-colors ${
-                    boundingBox
-                      ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  Clear
-                </button>
-              </div>
+            {/* Clear button (only for draw mode when shape exists) */}
+            {areaMode === 'draw' && boundingBox && (
+              <button
+                onClick={() => drawControls?.clearDrawing()}
+                className="w-full py-2 px-3 text-sm font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors"
+              >
+                Clear & Redraw
+              </button>
             )}
 
             {/* Bounding box info */}

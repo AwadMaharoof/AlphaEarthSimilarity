@@ -367,6 +367,8 @@ export default function Map({
           if (draw.current) {
             draw.current.deleteAll()
             onBoundingBoxChangeRef.current(null)
+            // Restart drawing mode
+            draw.current.changeMode('draw_polygon')
           }
         },
       }
@@ -404,15 +406,19 @@ export default function Map({
     }
   }, [boundingBox, areaMode, updateSquareLayer])
 
-  // Clear draw features when switching to click mode
+  // Handle mode switching
   useEffect(() => {
     if (areaMode === 'click' && draw.current) {
       draw.current.deleteAll()
     }
     if (areaMode === 'draw') {
       updateSquareLayer(null)
+      // Auto-start drawing when switching to draw mode
+      if (draw.current && isAreaSelectionEnabled) {
+        draw.current.changeMode('draw_polygon')
+      }
     }
-  }, [areaMode, updateSquareLayer])
+  }, [areaMode, updateSquareLayer, isAreaSelectionEnabled])
 
 
   // Update cursor based on state
