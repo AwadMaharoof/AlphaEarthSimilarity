@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { EmbeddingData, ReferencePixel, SimilarityResult } from '../types';
 import { latLngToPixel } from '../utils/coordinates';
-import { extractEmbeddingVector, normalizeVector } from '../utils/dequantize';
+import { extractEmbeddingVector } from '../utils/dequantize';
 import { getTileOrigin } from '../utils/cogIndex';
 import type { TileInfo } from '../types';
 
@@ -19,8 +19,8 @@ interface UseSimilarityResult {
 }
 
 /**
- * Calculate cosine similarity between reference vector and all pixels
- * Cosine similarity = (A · B) / (|A| * |B|)
+ * Calculate similarity between reference vector and all pixels using dot product.
+ * Since embeddings are pre-normalized to unit length, dot product = cosine similarity.
  */
 export function calculateSimilarityScores(
   embeddings: Float32Array,
@@ -33,9 +33,6 @@ export function calculateSimilarityScores(
   const bands = 64;
   const scores = new Float32Array(numPixels);
 
-  // Normalize the reference vector for cosine similarity
-  const normalizedRef = normalizeVector(refVector);
-
   for (let pixelIdx = 0; pixelIdx < numPixels; pixelIdx++) {
     // Skip masked pixels
     if (!mask[pixelIdx]) {
@@ -45,23 +42,13 @@ export function calculateSimilarityScores(
 
     const baseIdx = pixelIdx * bands;
     let dotProduct = 0;
-    let magnitude = 0;
 
-    // Calculate dot product and magnitude simultaneously
+    // Dot product (vectors are pre-normalized to unit length)
     for (let band = 0; band < bands; band++) {
-      const val = embeddings[baseIdx + band];
-      dotProduct += val * normalizedRef[band];
-      magnitude += val * val;
+      dotProduct += embeddings[baseIdx + band] * refVector[band];
     }
 
-    magnitude = Math.sqrt(magnitude);
-
-    // Cosine similarity (avoid division by zero)
-    if (magnitude > 0) {
-      scores[pixelIdx] = dotProduct / magnitude;
-    } else {
-      scores[pixelIdx] = 0;
-    }
+    scores[pixelIdx] = dotProduct;
   }
 
   return scores;

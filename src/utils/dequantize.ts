@@ -26,6 +26,7 @@ export function dequantize(
     const baseIdx = pixelIdx * bands;
     let isValid = true;
 
+    // First pass: dequantize
     for (let band = 0; band < bands; band++) {
       const raw = data[baseIdx + band];
 
@@ -42,32 +43,25 @@ export function dequantize(
     }
 
     mask[pixelIdx] = isValid;
+
+    // Second pass: normalize to unit length (as Google intended)
+    if (isValid) {
+      let magnitude = 0;
+      for (let band = 0; band < bands; band++) {
+        const val = embeddings[baseIdx + band];
+        magnitude += val * val;
+      }
+      magnitude = Math.sqrt(magnitude);
+
+      if (magnitude > 0) {
+        for (let band = 0; band < bands; band++) {
+          embeddings[baseIdx + band] /= magnitude;
+        }
+      }
+    }
   }
 
   return { embeddings, mask };
-}
-
-/**
- * Normalize an embedding vector to unit length
- * Used for cosine similarity calculations
- */
-export function normalizeVector(vector: Float32Array): Float32Array {
-  let magnitude = 0;
-  for (let i = 0; i < vector.length; i++) {
-    magnitude += vector[i] * vector[i];
-  }
-  magnitude = Math.sqrt(magnitude);
-
-  if (magnitude === 0) {
-    return vector;
-  }
-
-  const normalized = new Float32Array(vector.length);
-  for (let i = 0; i < vector.length; i++) {
-    normalized[i] = vector[i] / magnitude;
-  }
-
-  return normalized;
 }
 
 /**

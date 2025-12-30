@@ -92,10 +92,6 @@ describe('Coordinate Utilities', () => {
   });
 
   describe('bboxToPixelWindow', () => {
-    const tileOriginX = 500000;
-    const tileOriginY = 4000000;
-    const pixelSize = 10;
-
     it('should calculate correct window for bbox', () => {
       // Create a bbox that spans 100m x 100m
       // We need to convert back from UTM to lat/lng for the test
@@ -117,7 +113,7 @@ describe('Coordinate Utilities', () => {
       const sgOriginX = 500000; // Approximate for zone 48N
       const sgOriginY = 100000; // Approximate for near-equator
 
-      const [x, y, width, height] = bboxToPixelWindow(bbox, sgOriginX, sgOriginY, pixelSize);
+      const [, , width, height] = bboxToPixelWindow(bbox, sgOriginX, sgOriginY, 10);
 
       // Window should have positive dimensions
       expect(width).toBeGreaterThan(0);
