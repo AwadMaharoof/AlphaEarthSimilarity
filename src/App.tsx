@@ -3,6 +3,8 @@ import maplibregl from 'maplibre-gl'
 import Map from './components/Map'
 import ControlPanel from './components/ControlPanel'
 import ReferenceMarker from './components/ReferenceMarker'
+import ResultsOverlay from './components/ResultsOverlay'
+import ThresholdSlider from './components/ThresholdSlider'
 import { useBoundingBox } from './hooks/useBoundingBox'
 import { useCOGLoader } from './hooks/useCOGLoader'
 import { useSimilarity } from './hooks/useSimilarity'
@@ -12,6 +14,11 @@ function App() {
   const [appState, setAppState] = useState<AppState>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+
+  // Visualization settings
+  const [threshold, setThreshold] = useState(0.7)
+  const [binaryMask, setBinaryMask] = useState(false)
+  const [opacity, setOpacity] = useState(0.8)
 
   const {
     boundingBox,
@@ -102,6 +109,13 @@ function App() {
         map={mapRef.current}
         referencePixel={referencePixel}
       />
+      <ResultsOverlay
+        map={mapRef.current}
+        similarityResult={similarityResult}
+        threshold={threshold}
+        binaryMask={binaryMask}
+        opacity={opacity}
+      />
       <ControlPanel
         appState={appState}
         boundingBox={boundingBox}
@@ -112,6 +126,20 @@ function App() {
         referencePixel={referencePixel}
         similarityResult={similarityResult}
       />
+      {/* Threshold controls - only show when similarity results are available */}
+      {similarityResult && (
+        <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 w-64">
+          <div className="text-sm font-medium text-gray-700 mb-3">Visualization</div>
+          <ThresholdSlider
+            threshold={threshold}
+            onThresholdChange={setThreshold}
+            binaryMask={binaryMask}
+            onBinaryMaskChange={setBinaryMask}
+            opacity={opacity}
+            onOpacityChange={setOpacity}
+          />
+        </div>
+      )}
     </div>
   )
 }
