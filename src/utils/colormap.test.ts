@@ -41,7 +41,7 @@ describe('Colormap', () => {
         0.998, 0.9988, 0.9992
       ]);
 
-      const rgba = scoresToRGBA(scores, width, height, 0.5, false, 1.0);
+      const rgba = scoresToRGBA(scores, width, height, 0.5, 1.0);
 
       // Extract unique colors (ignoring alpha)
       const colors = new Set<string>();
@@ -60,7 +60,7 @@ describe('Colormap', () => {
 
     it('should map min score to purple and max score to yellow', () => {
       const scores = new Float32Array([0.5, 0.75, 1.0]);
-      const rgba = scoresToRGBA(scores, 3, 1, 0.0, false, 1.0);
+      const rgba = scoresToRGBA(scores, 3, 1, 0.0, 1.0);
 
       // First pixel (min score 0.5) should be purple
       const purple = viridis(0);
@@ -77,7 +77,7 @@ describe('Colormap', () => {
 
     it('should treat negative scores as masked (transparent)', () => {
       const scores = new Float32Array([0.5, -1, 1.0]);
-      const rgba = scoresToRGBA(scores, 3, 1, 0.0, false, 1.0);
+      const rgba = scoresToRGBA(scores, 3, 1, 0.0, 1.0);
 
       // Middle pixel is masked - should be transparent
       expect(rgba[4]).toBe(0); // R
@@ -90,11 +90,11 @@ describe('Colormap', () => {
       expect(rgba[11]).toBe(255); // A
     });
 
-    it('should apply binary mask correctly with dynamic threshold', () => {
+    it('should apply threshold correctly (hide values below)', () => {
       // Scores range from 0.9 to 1.0
       const scores = new Float32Array([0.9, 0.95, 1.0]);
       // Threshold of 0.5 means show values >= 0.95 (midpoint of range)
-      const rgba = scoresToRGBA(scores, 3, 1, 0.5, true, 1.0);
+      const rgba = scoresToRGBA(scores, 3, 1, 0.5, 1.0);
 
       // First pixel (0.9) should be transparent (below threshold)
       expect(rgba[3]).toBe(0);
@@ -108,7 +108,7 @@ describe('Colormap', () => {
 
     it('should handle all identical scores', () => {
       const scores = new Float32Array([0.999, 0.999, 0.999, 0.999]);
-      const rgba = scoresToRGBA(scores, 2, 2, 0.0, false, 1.0);
+      const rgba = scoresToRGBA(scores, 2, 2, 0.0, 1.0);
 
       // Should not crash and should produce valid RGBA
       for (let i = 0; i < 4; i++) {

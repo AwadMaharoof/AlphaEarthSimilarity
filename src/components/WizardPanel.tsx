@@ -21,8 +21,6 @@ interface WizardPanelProps {
   similarityResult: SimilarityResult | null
   threshold: number
   onThresholdChange: (value: number) => void
-  binaryMask: boolean
-  onBinaryMaskChange: (value: boolean) => void
   opacity: number
   onOpacityChange: (value: number) => void
   drawControls: DrawControls | null
@@ -45,8 +43,6 @@ export default function WizardPanel({
   similarityResult,
   threshold,
   onThresholdChange,
-  binaryMask,
-  onBinaryMaskChange,
   opacity,
   onOpacityChange,
   drawControls,
@@ -298,8 +294,6 @@ export default function WizardPanel({
             <ThresholdSlider
               threshold={threshold}
               onThresholdChange={onThresholdChange}
-              binaryMask={binaryMask}
-              onBinaryMaskChange={onBinaryMaskChange}
               opacity={opacity}
               onOpacityChange={onOpacityChange}
             />

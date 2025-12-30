@@ -87,7 +87,6 @@ function computeScoreRange(scores: Float32Array): { min: number; max: number } {
  * @param width - Image width
  * @param height - Image height
  * @param threshold - Minimum score to display (0-1, relative to score range)
- * @param binaryMask - If true, show only above/below threshold; if false, show gradient
  * @param opacity - Overall opacity (0-1)
  * @returns Uint8ClampedArray suitable for ImageData (W x H x 4 RGBA)
  */
@@ -96,7 +95,6 @@ export function scoresToRGBA(
   width: number,
   height: number,
   threshold: number,
-  binaryMask: boolean,
   opacity: number
 ): Uint8ClampedArray {
   const rgba = new Uint8ClampedArray(width * height * 4);
@@ -127,36 +125,18 @@ export function scoresToRGBA(
       ? (score - scoreMin) / scoreRange
       : 0.5;
 
-    if (binaryMask) {
-      // Binary mode: opaque if above threshold, transparent if below
-      if (score >= actualThreshold) {
-        const [r, g, b] = viridis(normalizedScore);
-        rgba[rgbaIdx] = r;
-        rgba[rgbaIdx + 1] = g;
-        rgba[rgbaIdx + 2] = b;
-        rgba[rgbaIdx + 3] = baseAlpha;
-      } else {
-        rgba[rgbaIdx] = 0;
-        rgba[rgbaIdx + 1] = 0;
-        rgba[rgbaIdx + 2] = 0;
-        rgba[rgbaIdx + 3] = 0;
-      }
-    } else {
-      // Gradient mode: show all scores with gradient, but fade out below threshold
+    // Show pixels above threshold, hide those below
+    if (score >= actualThreshold) {
       const [r, g, b] = viridis(normalizedScore);
       rgba[rgbaIdx] = r;
       rgba[rgbaIdx + 1] = g;
       rgba[rgbaIdx + 2] = b;
-
-      // Fade out scores below threshold
-      if (score < actualThreshold) {
-        // Linear fade based on how far below threshold
-        const fadeRatio = normalizedScore / (threshold || 0.01);
-        const fadeAlpha = Math.round(fadeRatio * baseAlpha * 0.3);
-        rgba[rgbaIdx + 3] = fadeAlpha;
-      } else {
-        rgba[rgbaIdx + 3] = baseAlpha;
-      }
+      rgba[rgbaIdx + 3] = baseAlpha;
+    } else {
+      rgba[rgbaIdx] = 0;
+      rgba[rgbaIdx + 1] = 0;
+      rgba[rgbaIdx + 2] = 0;
+      rgba[rgbaIdx + 3] = 0;
     }
   }
 

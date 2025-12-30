@@ -1,8 +1,6 @@
 interface ThresholdSliderProps {
   threshold: number;
   onThresholdChange: (value: number) => void;
-  binaryMask: boolean;
-  onBinaryMaskChange: (value: boolean) => void;
   opacity: number;
   onOpacityChange: (value: number) => void;
 }
@@ -10,8 +8,6 @@ interface ThresholdSliderProps {
 export default function ThresholdSlider({
   threshold,
   onThresholdChange,
-  binaryMask,
-  onBinaryMaskChange,
   opacity,
   onOpacityChange,
 }: ThresholdSliderProps) {
@@ -33,29 +29,7 @@ export default function ThresholdSlider({
           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
         />
         <div className="text-xs text-gray-400 mt-0.5">
-          Pixels below threshold are faded
-        </div>
-      </div>
-
-      {/* Binary mask toggle */}
-      <div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-600">Binary mask</span>
-          <button
-            onClick={() => onBinaryMaskChange(!binaryMask)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              binaryMask ? 'bg-blue-600' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                binaryMask ? 'translate-x-4' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-        <div className="text-xs text-gray-400 mt-0.5">
-          {binaryMask ? 'Showing only pixels above threshold' : 'Showing gradient with faded low values'}
+          Pixels below threshold are hidden
         </div>
       </div>
 

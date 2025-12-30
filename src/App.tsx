@@ -32,7 +32,6 @@ function App() {
 
   // Visualization settings
   const [threshold, setThreshold] = useState(0.7)
-  const [binaryMask, setBinaryMask] = useState(false)
   const [opacity, setOpacity] = useState(0.8)
 
   // Debounce threshold to avoid excessive re-renders during slider drag
@@ -140,7 +139,6 @@ function App() {
         map={mapRef.current}
         similarityResult={similarityResult}
         threshold={debouncedThreshold}
-        binaryMask={binaryMask}
         opacity={opacity}
       />
       <WizardPanel
@@ -158,8 +156,6 @@ function App() {
         similarityResult={similarityResult}
         threshold={threshold}
         onThresholdChange={setThreshold}
-        binaryMask={binaryMask}
-        onBinaryMaskChange={setBinaryMask}
         opacity={opacity}
         onOpacityChange={setOpacity}
         drawControls={drawControlsRef.current}

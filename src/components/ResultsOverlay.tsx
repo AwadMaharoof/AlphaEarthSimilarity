@@ -9,7 +9,6 @@ interface ResultsOverlayProps {
   map: maplibregl.Map | null;
   similarityResult: SimilarityResult | null;
   threshold: number;
-  binaryMask: boolean;
   opacity: number;
 }
 
@@ -17,7 +16,6 @@ export default function ResultsOverlay({
   map,
   similarityResult,
   threshold,
-  binaryMask,
   opacity,
 }: ResultsOverlayProps) {
   const overlayRef = useRef<MapboxOverlay | null>(null);
@@ -27,14 +25,14 @@ export default function ResultsOverlay({
     if (!similarityResult) return null;
 
     const { scores, width, height } = similarityResult;
-    const rgba = scoresToRGBA(scores, width, height, threshold, binaryMask, opacity);
+    const rgba = scoresToRGBA(scores, width, height, threshold, opacity);
 
     return {
       data: rgba,
       width,
       height,
     };
-  }, [similarityResult, threshold, binaryMask, opacity]);
+  }, [similarityResult, threshold, opacity]);
 
   // Create deck.gl layer
   const layers = useMemo(() => {
