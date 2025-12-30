@@ -4,7 +4,7 @@ export default function InfoWidget() {
   const [isOpen, setIsOpen] = useState(true)
 
   return (
-    <div className="absolute top-4 right-4 max-w-xs z-10">
+    <div className="absolute bottom-10 right-4 max-w-sm z-10">
       {isOpen ? (
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -21,17 +21,42 @@ export default function InfoWidget() {
               </svg>
             </button>
           </div>
-          <div className="p-4 text-sm text-gray-600 space-y-2">
+          <div className="p-4 text-sm text-gray-600 space-y-3">
             <p>
-              Find visually similar features in satellite imagery using
-              AI-powered embeddings from Google's AlphaEarth dataset.
+              Find visually similar features in satellite imagery using{' '}
+              <a
+                href="https://arxiv.org/abs/2507.22291"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 hover:text-indigo-800 underline"
+              >
+                AlphaEarth embeddings
+              </a>
+              {' '}— 64-dimensional vectors that encode visual and semantic properties of 10m satellite pixels.
             </p>
             <p>
-              Select an area, load embeddings, then click any pixel to
-              see a similarity heatmap across the region.
+              Select an area, load embeddings from the{' '}
+              <a
+                href="https://source.coop/tge-labs/aef"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 hover:text-indigo-800 underline"
+              >
+                TGE Labs dataset
+              </a>
+              , then click any pixel to compute{' '}
+              <a
+                href="https://developers.google.com/earth-engine/tutorials/community/satellite-embedding-05-similarity-search"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 hover:text-indigo-800 underline"
+              >
+                cosine similarity
+              </a>
+              {' '}across the selected area.
             </p>
-            <p className="text-xs text-gray-500 pt-1">
-              All computation runs in your browser — no data leaves your device.
+            <p className="text-xs text-gray-500 pt-1 border-t border-gray-100">
+              All computation runs client-side in your browser. Embeddings by Google &amp; DeepMind (CC-BY 4.0).
             </p>
           </div>
         </div>

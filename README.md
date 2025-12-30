@@ -2,6 +2,8 @@
 
 A browser-based tool for finding visually similar features in satellite imagery using [AlphaEarth embeddings](https://arxiv.org/abs/2507.22291) — all client-side, no backend required.
 
+![Demo](assets/demo.gif)
+
 ## How It Works
 
 1. **Select Area** — Click to place a 2-20km square, or draw a custom polygon
@@ -14,7 +16,7 @@ A browser-based tool for finding visually similar features in satellite imagery 
 Embeddings loaded from [TGE Labs AlphaEarth dataset](https://source.coop/tge-labs/aef) on Source Cooperative:
 - 64-dimensional embeddings per 10m pixel
 - Cloud-Optimized GeoTIFF (COG) format
-- Global coverage, 2018-2024
+- Global coverage, 2018-2024 (this tool uses 2024 data)
 - Tile index via GeoParquet for fast lookup
 
 ## Similarity Algorithm

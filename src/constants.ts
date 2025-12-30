@@ -13,8 +13,8 @@ export const CONFIG = {
   PIXEL_SIZE: 10,
 
   // Default map view (Singapore - covered by 2024 data)
-  DEFAULT_CENTER: [103.84, 1.28] as [number, number],
-  DEFAULT_ZOOM: 10,
+  DEFAULT_CENTER: [103.8, 1.35] as [number, number],
+  DEFAULT_ZOOM: 11,
 
   // Year filter
   TARGET_YEAR: '2024',
