@@ -22,7 +22,7 @@ interface UseSimilarityResult {
  * Calculate cosine similarity between reference vector and all pixels
  * Cosine similarity = (A · B) / (|A| * |B|)
  */
-function calculateSimilarityScores(
+export function calculateSimilarityScores(
   embeddings: Float32Array,
   mask: boolean[],
   refVector: Float32Array,
@@ -82,22 +82,25 @@ export function useSimilarity(): UseSimilarityResult {
       setIsCalculating(true);
 
       try {
-        // Convert click coordinates to pixel coordinates
+        // Convert click coordinates to pixel coordinates in native COG order
         const origin = getTileOrigin(tile);
         const pixelCoord = latLngToPixel(lat, lng, origin.x, origin.y, 10);
 
-        // Calculate pixel position relative to the loaded window (not the full tile)
-        // We need to offset by the window origin
-        const windowOrigin = latLngToPixel(
-          embeddingData.bounds.maxLat,
+        // Calculate the SW corner of the window (smallest pixel coords in native order)
+        const windowSW = latLngToPixel(
+          embeddingData.bounds.minLat,
           embeddingData.bounds.minLng,
           origin.x,
           origin.y,
           10
         );
 
-        const localX = pixelCoord.x - windowOrigin.x;
-        const localY = pixelCoord.y - windowOrigin.y;
+        // Local coordinates in native COG order (row 0 = south)
+        const localX = pixelCoord.x - windowSW.x;
+        const nativeLocalY = pixelCoord.y - windowSW.y;
+
+        // After flipVertical, row 0 is north, so we need to flip Y
+        const localY = (embeddingData.height - 1) - nativeLocalY;
 
         // Validate pixel is within bounds
         if (

@@ -98,11 +98,17 @@ export function latLngToUTM(lat: number, lng: number): UTMCoord {
 
 /**
  * Convert UTM coordinates to pixel coordinates within a tile
+ *
+ * For bottom-up COGs (standard GeoTIFF format):
+ * - Pixel (0,0) is at the SW corner (minX, minY)
+ * - X increases eastward (right)
+ * - Y increases northward (up in geographic space, but stored as increasing row numbers)
+ *
  * @param utm - UTM coordinates
- * @param tileOriginX - X origin of the tile in UTM (left edge)
- * @param tileOriginY - Y origin of the tile in UTM (top edge, max Y)
+ * @param tileOriginX - X origin of the tile in UTM (west edge, minX)
+ * @param tileOriginY - Y origin of the tile in UTM (south edge, minY)
  * @param pixelSize - Size of each pixel in meters (typically 10m)
- * @returns Pixel coordinates (0-indexed from top-left)
+ * @returns Pixel coordinates in the COG's native storage order
  */
 export function utmToPixel(
   utm: UTMCoord,
@@ -110,11 +116,11 @@ export function utmToPixel(
   tileOriginY: number,
   pixelSize: number = 10
 ): PixelCoord {
-  // X increases to the right
+  // X increases to the right (east)
   const x = Math.floor((utm.easting - tileOriginX) / pixelSize);
-  // Y increases downward in pixel space (origin is top-left)
-  // But UTM northing increases upward, so we invert
-  const y = Math.floor((tileOriginY - utm.northing) / pixelSize);
+  // Y increases northward in UTM, and in bottom-up COGs row 0 is at minY (south)
+  // So Y pixel = (northing - minY) / pixelSize
+  const y = Math.floor((utm.northing - tileOriginY) / pixelSize);
 
   return { x, y };
 }
@@ -135,11 +141,16 @@ export function latLngToPixel(
 
 /**
  * Calculate pixel window for a bounding box within a tile
+ *
+ * For bottom-up COGs:
+ * - Row 0 is at the south (minLat)
+ * - Column 0 is at the west (minLng)
+ *
  * @param bbox - Bounding box in lat/lng
- * @param tileOriginX - X origin of tile in UTM
- * @param tileOriginY - Y origin of tile in UTM (top edge)
+ * @param tileOriginX - X origin of tile in UTM (west edge, minX)
+ * @param tileOriginY - Y origin of tile in UTM (south edge, minY)
  * @param pixelSize - Pixel size in meters
- * @returns Window as [x, y, width, height]
+ * @returns Window as [x, y, width, height] where (x,y) is the SW corner pixel
  */
 export function bboxToPixelWindow(
   bbox: BoundingBox,
@@ -147,26 +158,28 @@ export function bboxToPixelWindow(
   tileOriginY: number,
   pixelSize: number = 10
 ): [number, number, number, number] {
-  // Get pixel coordinates for all four corners
-  const topLeft = latLngToPixel(
-    bbox.maxLat,
+  // SW corner of bbox (minLat, minLng) - this gives the smallest pixel coords
+  const sw = latLngToPixel(
+    bbox.minLat,
     bbox.minLng,
     tileOriginX,
     tileOriginY,
     pixelSize
   );
-  const bottomRight = latLngToPixel(
-    bbox.minLat,
+  // NE corner of bbox (maxLat, maxLng) - this gives the largest pixel coords
+  const ne = latLngToPixel(
+    bbox.maxLat,
     bbox.maxLng,
     tileOriginX,
     tileOriginY,
     pixelSize
   );
 
-  const x = topLeft.x;
-  const y = topLeft.y;
-  const width = bottomRight.x - topLeft.x + 1;
-  const height = bottomRight.y - topLeft.y + 1;
+  // Window starts at SW corner (smallest x and y)
+  const x = sw.x;
+  const y = sw.y;
+  const width = ne.x - sw.x + 1;
+  const height = ne.y - sw.y + 1;
 
   return [x, y, width, height];
 }

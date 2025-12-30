@@ -1,6 +1,6 @@
 import { TileInfo, BoundingBox } from '../types';
 import { CONFIG } from '../constants';
-import { getUTMZone, latLngToUTM } from './coordinates';
+import { getUTMZone } from './coordinates';
 import { load } from '@loaders.gl/core';
 import { ParquetLoader } from '@loaders.gl/parquet';
 
@@ -158,13 +158,16 @@ export async function findTileForBoundingBox(
 }
 
 /**
- * Get tile origin in UTM coordinates (top-left corner)
+ * Get tile origin in UTM coordinates.
+ * For bottom-up COGs (standard GeoTIFF), pixel (0,0) is at the SW corner (minX, minY).
+ * Returns the SW corner coordinates.
  */
 export function getTileOrigin(tile: TileInfo): { x: number; y: number } {
-  const topLeftUTM = latLngToUTM(tile.lngLatBounds.maxLat, tile.lngLatBounds.minLng);
+  // Use the UTM bounds directly from the tile metadata
+  // This is the SW corner where pixel (0,0) is located in a bottom-up COG
   return {
-    x: topLeftUTM.easting,
-    y: topLeftUTM.northing,
+    x: tile.utmBounds.minX,
+    y: tile.utmBounds.minY,
   };
 }
 

@@ -51,12 +51,43 @@ export function viridis(value: number): RGB {
 }
 
 /**
+ * Compute min and max of valid (non-negative) scores
+ */
+function computeScoreRange(scores: Float32Array): { min: number; max: number } {
+  let min = Infinity;
+  let max = -Infinity;
+
+  for (let i = 0; i < scores.length; i++) {
+    const score = scores[i];
+    if (score >= 0) {
+      if (score < min) min = score;
+      if (score > max) max = score;
+    }
+  }
+
+  // Handle edge cases
+  if (min === Infinity) min = 0;
+  if (max === -Infinity) max = 1;
+  if (min === max) {
+    // All scores identical - create artificial range
+    min = max - 0.1;
+    if (min < 0) min = 0;
+  }
+
+  return { min, max };
+}
+
+/**
  * Convert similarity scores to RGBA image data
+ *
+ * Scores are dynamically scaled to use the full color range, since
+ * cosine similarity in homogeneous regions can have very narrow ranges
+ * (e.g., 0.998 to 1.000).
  *
  * @param scores - Float32Array of similarity scores (W x H)
  * @param width - Image width
  * @param height - Image height
- * @param threshold - Minimum score to display (0-1)
+ * @param threshold - Minimum score to display (0-1, relative to score range)
  * @param binaryMask - If true, show only above/below threshold; if false, show gradient
  * @param opacity - Overall opacity (0-1)
  * @returns Uint8ClampedArray suitable for ImageData (W x H x 4 RGBA)
@@ -72,6 +103,13 @@ export function scoresToRGBA(
   const rgba = new Uint8ClampedArray(width * height * 4);
   const baseAlpha = Math.round(opacity * 255);
 
+  // Compute the actual score range for dynamic scaling
+  const { min: scoreMin, max: scoreMax } = computeScoreRange(scores);
+  const scoreRange = scoreMax - scoreMin;
+
+  // Convert threshold from [0,1] UI range to actual score value
+  const actualThreshold = scoreMin + threshold * scoreRange;
+
   for (let i = 0; i < scores.length; i++) {
     const score = scores[i];
     const rgbaIdx = i * 4;
@@ -85,13 +123,15 @@ export function scoresToRGBA(
       continue;
     }
 
-    // Clamp score to [0, 1] for colormap
-    const clampedScore = Math.max(0, Math.min(1, score));
+    // Normalize score to [0, 1] based on actual range for colormap
+    const normalizedScore = scoreRange > 0
+      ? (score - scoreMin) / scoreRange
+      : 0.5;
 
     if (binaryMask) {
       // Binary mode: opaque if above threshold, transparent if below
-      if (clampedScore >= threshold) {
-        const [r, g, b] = viridis(clampedScore);
+      if (score >= actualThreshold) {
+        const [r, g, b] = viridis(normalizedScore);
         rgba[rgbaIdx] = r;
         rgba[rgbaIdx + 1] = g;
         rgba[rgbaIdx + 2] = b;
@@ -104,15 +144,16 @@ export function scoresToRGBA(
       }
     } else {
       // Gradient mode: show all scores with gradient, but fade out below threshold
-      const [r, g, b] = viridis(clampedScore);
+      const [r, g, b] = viridis(normalizedScore);
       rgba[rgbaIdx] = r;
       rgba[rgbaIdx + 1] = g;
       rgba[rgbaIdx + 2] = b;
 
       // Fade out scores below threshold
-      if (clampedScore < threshold) {
-        // Linear fade from 0 at score=0 to baseAlpha at score=threshold
-        const fadeAlpha = Math.round((clampedScore / threshold) * baseAlpha * 0.3);
+      if (score < actualThreshold) {
+        // Linear fade based on how far below threshold
+        const fadeRatio = normalizedScore / (threshold || 0.01);
+        const fadeAlpha = Math.round(fadeRatio * baseAlpha * 0.3);
         rgba[rgbaIdx + 3] = fadeAlpha;
       } else {
         rgba[rgbaIdx + 3] = baseAlpha;
