@@ -1,51 +1,10 @@
 import { TileInfo, BoundingBox } from '../types';
 import { CONFIG } from '../constants';
 import { getUTMZone, latLngToUTM } from './coordinates';
+import { load } from '@loaders.gl/core';
+import { ParquetLoader } from '@loaders.gl/parquet';
 
 let cachedTiles: TileInfo[] | null = null;
-
-/**
- * Parse WKT POLYGON to extract bounding box
- * The WKT is in WGS84 (EPSG:4326) format: POLYGON((lng lat, lng lat, ...))
- */
-function parseWKTBounds(wkt: string): BoundingBox {
-  // Remove quotes if present
-  const cleanWkt = wkt.replace(/^"|"$/g, '');
-
-  const match = cleanWkt.match(/POLYGON\s*\(\(([\d\s.,+-]+)\)\)/i);
-  if (!match) {
-    throw new Error(`Invalid WKT format: ${wkt}`);
-  }
-
-  const coordPairs = match[1].split(',').map((pair) => {
-    const [lng, lat] = pair.trim().split(/\s+/).map(Number);
-    return { lng, lat };
-  });
-
-  const lngs = coordPairs.map((c) => c.lng);
-  const lats = coordPairs.map((c) => c.lat);
-
-  return {
-    minLng: Math.min(...lngs),
-    minLat: Math.min(...lats),
-    maxLng: Math.max(...lngs),
-    maxLat: Math.max(...lats),
-  };
-}
-
-/**
- * Extract UTM zone from CRS string
- * Format: "EPSG:326XX" (north) or "EPSG:327XX" (south)
- */
-function extractUTMZoneFromCRS(crs: string): string {
-  const match = crs.match(/EPSG:32([67])(\d{2})/);
-  if (!match) {
-    throw new Error(`Cannot parse UTM zone from CRS: ${crs}`);
-  }
-  const hemisphere = match[1] === '6' ? 'N' : 'S';
-  const zone = parseInt(match[2], 10);
-  return `${zone}${hemisphere}`;
-}
 
 /**
  * Convert S3 URL to HTTPS URL
@@ -59,75 +18,85 @@ function s3ToHttps(s3Url: string): string {
 }
 
 /**
- * Parse a CSV line, handling quoted fields
+ * Parquet row schema matching aef_index.parquet
+ * Note: string fields may come as Uint8Array/Buffer depending on parquet loader version
  */
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim());
-
-  return result;
+interface ParquetRow {
+  crs: string;
+  path: string | Uint8Array;  // S3 URL, may be binary
+  year: string;
+  utm_zone: string;
+  utm_west: string;
+  utm_south: string;
+  utm_east: string;
+  utm_north: string;
+  wgs84_west: string;
+  wgs84_south: string;
+  wgs84_east: string;
+  wgs84_north: string;
 }
 
 /**
- * Fetch and parse the COG index CSV
+ * Decode a field that may be a string or Uint8Array
+ */
+function decodeField(value: string | Uint8Array): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  return new TextDecoder().decode(value);
+}
+
+/**
+ * Fetch and parse the COG index from GeoParquet
  */
 export async function fetchCOGIndex(): Promise<TileInfo[]> {
   if (cachedTiles) {
     return cachedTiles;
   }
 
-  const response = await fetch(CONFIG.COG_INDEX_URL);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch COG index: ${response.status} ${response.statusText}`);
-  }
-
-  const text = await response.text();
-  const lines = text.trim().split('\n');
+  const data = await load(CONFIG.COG_INDEX_URL, ParquetLoader, {
+    parquet: {
+      shape: 'object-row-table',
+    },
+  });
 
   const tiles: TileInfo[] = [];
+  // Handle different return shapes from ParquetLoader
+  const rows = Array.isArray(data) ? data : (data as { data: unknown[] }).data;
 
-  for (const line of lines) {
-    if (!line.trim()) continue;
-
-    const fields = parseCSVLine(line);
-    if (fields.length < 4) continue;
-
-    // CSV format: WKT, CRS, URL, Year (no header)
-    const [wkt, crs, url, year] = fields;
-
+  for (const row of rows as ParquetRow[]) {
     // Filter by target year
-    if (year !== CONFIG.TARGET_YEAR) continue;
+    if (row.year !== CONFIG.TARGET_YEAR) continue;
 
     try {
-      const lngLatBounds = parseWKTBounds(wkt);
-      const utmZone = extractUTMZoneFromCRS(crs);
-      const httpsUrl = s3ToHttps(url);
+      // Decode path (may be string or Uint8Array)
+      const s3Path = decodeField(row.path);
+      const httpsUrl = s3ToHttps(s3Path);
+
+      // Parse WGS84 bounds (stored as strings)
+      const lngLatBounds: BoundingBox = {
+        minLng: parseFloat(row.wgs84_west),
+        minLat: parseFloat(row.wgs84_south),
+        maxLng: parseFloat(row.wgs84_east),
+        maxLat: parseFloat(row.wgs84_north),
+      };
 
       tiles.push({
-        wkt,
-        crs,
+        wkt: '',
+        crs: row.crs,
         url: httpsUrl,
-        year,
-        utmZone,
-        utmBounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+        year: row.year,
+        utmZone: row.utm_zone,
+        utmBounds: {
+          minX: parseFloat(row.utm_west),
+          minY: parseFloat(row.utm_south),
+          maxX: parseFloat(row.utm_east),
+          maxY: parseFloat(row.utm_north),
+        },
         lngLatBounds,
       });
-    } catch {
-      // Skip invalid entries silently
+    } catch (e) {
+      console.warn('Failed to parse row:', e, row);
     }
   }
 
