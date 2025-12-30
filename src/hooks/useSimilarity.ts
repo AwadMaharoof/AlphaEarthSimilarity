@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react';
-import { EmbeddingData, ReferencePixel, SimilarityResult } from '../types';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { EmbeddingData, ReferencePixel, SimilarityResult, BoundingBox } from '../types';
 import { latLngToPixel } from '../utils/coordinates';
 import { extractEmbeddingVector } from '../utils/dequantize';
 import { getTileOrigin } from '../utils/cogIndex';
 import { createPolygonMask } from '../utils/polygonMask';
 import { CONFIG } from '../constants';
 import type { TileInfo } from '../types';
+import type { WorkerResponse } from '../workers/similarity.worker';
+import SimilarityWorker from '../workers/similarity.worker?worker';
 
 interface UseSimilarityResult {
   referencePixel: ReferencePixel | null;
@@ -18,49 +20,91 @@ interface UseSimilarityResult {
   ) => { success: boolean; error?: string };
   clearReference: () => void;
   isCalculating: boolean;
-}
-
-/**
- * Calculate similarity between reference vector and all pixels using dot product.
- * Since embeddings are pre-normalized to unit length, dot product = cosine similarity.
- */
-function calculateSimilarityScores(
-  embeddings: Float32Array,
-  mask: boolean[],
-  polygonMask: boolean[] | null,
-  refVector: Float32Array,
-  width: number,
-  height: number
-): Float32Array {
-  const numPixels = width * height;
-  const bands = 64;
-  const scores = new Float32Array(numPixels);
-
-  for (let pixelIdx = 0; pixelIdx < numPixels; pixelIdx++) {
-    // Skip pixels outside polygon or masked by data
-    if (!mask[pixelIdx] || (polygonMask && !polygonMask[pixelIdx])) {
-      scores[pixelIdx] = -1; // Mark as invalid
-      continue;
-    }
-
-    const baseIdx = pixelIdx * bands;
-    let dotProduct = 0;
-
-    // Dot product (vectors are pre-normalized to unit length)
-    for (let band = 0; band < bands; band++) {
-      dotProduct += embeddings[baseIdx + band] * refVector[band];
-    }
-
-    scores[pixelIdx] = dotProduct;
-  }
-
-  return scores;
+  initWorker: (embeddingData: EmbeddingData) => void;
 }
 
 export function useSimilarity(): UseSimilarityResult {
   const [referencePixel, setReferencePixel] = useState<ReferencePixel | null>(null);
   const [similarityResult, setSimilarityResult] = useState<SimilarityResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isWorkerReady, setIsWorkerReady] = useState(false);
+
+  const workerRef = useRef<Worker | null>(null);
+  const requestIdRef = useRef(0);
+  const pendingResultRef = useRef<{
+    bounds: BoundingBox;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // Initialize worker on mount
+  useEffect(() => {
+    const worker = new SimilarityWorker();
+
+    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      if (e.data.type === 'ready') {
+        setIsWorkerReady(true);
+      } else if (e.data.type === 'result') {
+        // Ignore stale results
+        if (e.data.requestId === requestIdRef.current && pendingResultRef.current) {
+          const result: SimilarityResult = {
+            scores: e.data.scores,
+            width: pendingResultRef.current.width,
+            height: pendingResultRef.current.height,
+            bounds: pendingResultRef.current.bounds,
+          };
+          setSimilarityResult(result);
+          setIsCalculating(false);
+          pendingResultRef.current = null;
+        }
+      } else if (e.data.type === 'error') {
+        console.error('Worker error:', e.data.message);
+        setIsCalculating(false);
+        pendingResultRef.current = null;
+      }
+    };
+
+    worker.onerror = (e) => {
+      console.error('Worker error:', e);
+      setIsCalculating(false);
+      pendingResultRef.current = null;
+    };
+
+    workerRef.current = worker;
+
+    return () => {
+      worker.terminate();
+    };
+  }, []);
+
+  // Initialize worker with embeddings
+  const initWorker = useCallback((embeddingData: EmbeddingData) => {
+    if (!workerRef.current) return;
+
+    setIsWorkerReady(false);
+
+    // Convert boolean[] to Uint8Array
+    const maskArray = new Uint8Array(embeddingData.mask.map(b => b ? 1 : 0));
+
+    // Create polygon mask if custom shape was drawn
+    const polygonMask = createPolygonMask(
+      embeddingData.bounds,
+      embeddingData.width,
+      embeddingData.height
+    );
+    const polygonMaskArray = polygonMask
+      ? new Uint8Array(polygonMask.map(b => b ? 1 : 0))
+      : null;
+
+    workerRef.current.postMessage({
+      type: 'init',
+      embeddings: embeddingData.embeddings,
+      mask: maskArray,
+      polygonMask: polygonMaskArray,
+      width: embeddingData.width,
+      height: embeddingData.height,
+    });
+  }, []);
 
   const selectReferencePixel = useCallback(
     (
@@ -69,7 +113,9 @@ export function useSimilarity(): UseSimilarityResult {
       embeddingData: EmbeddingData,
       tile: TileInfo
     ): { success: boolean; error?: string } => {
-      setIsCalculating(true);
+      if (!workerRef.current || !isWorkerReady) {
+        return { success: false, error: 'Worker not ready' };
+      }
 
       try {
         // Convert click coordinates to pixel coordinates in native COG order
@@ -99,7 +145,6 @@ export function useSimilarity(): UseSimilarityResult {
           localY < 0 ||
           localY >= embeddingData.height
         ) {
-          setIsCalculating(false);
           return {
             success: false,
             error: 'Click outside loaded area. Please click within the bounding box.',
@@ -109,7 +154,6 @@ export function useSimilarity(): UseSimilarityResult {
         // Check if pixel is masked
         const pixelIdx = localY * embeddingData.width + localX;
         if (!embeddingData.mask[pixelIdx]) {
-          setIsCalculating(false);
           return {
             success: false,
             error: 'No data for this pixel (cloud, water, or masked area). Try clicking a different location.',
@@ -134,43 +178,32 @@ export function useSimilarity(): UseSimilarityResult {
         };
         setReferencePixel(refPixel);
 
-        // Create polygon mask if custom shape was drawn
-        const polygonMask = createPolygonMask(
-          embeddingData.bounds,
-          embeddingData.width,
-          embeddingData.height
-        );
-
-        // Calculate similarity scores for all pixels
-        const scores = calculateSimilarityScores(
-          embeddingData.embeddings,
-          embeddingData.mask,
-          polygonMask,
-          vector,
-          embeddingData.width,
-          embeddingData.height
-        );
-
-        // Store similarity result
-        const result: SimilarityResult = {
-          scores,
+        // Store pending result metadata for when worker responds
+        pendingResultRef.current = {
+          bounds: embeddingData.bounds,
           width: embeddingData.width,
           height: embeddingData.height,
-          bounds: embeddingData.bounds,
         };
-        setSimilarityResult(result);
-        setIsCalculating(false);
+
+        // Send calculation request to worker
+        setIsCalculating(true);
+        requestIdRef.current++;
+
+        workerRef.current.postMessage({
+          type: 'calculate',
+          refVector: vector,
+          requestId: requestIdRef.current,
+        });
 
         return { success: true };
       } catch (err) {
-        setIsCalculating(false);
         return {
           success: false,
           error: err instanceof Error ? err.message : 'Failed to calculate similarity',
         };
       }
     },
-    []
+    [isWorkerReady]
   );
 
   const clearReference = useCallback(() => {
@@ -184,5 +217,6 @@ export function useSimilarity(): UseSimilarityResult {
     selectReferencePixel,
     clearReference,
     isCalculating,
+    initWorker,
   };
 }

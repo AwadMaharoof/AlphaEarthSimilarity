@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
 import Map, { DrawControls } from './components/Map'
 import WizardPanel from './components/WizardPanel'
@@ -58,7 +58,15 @@ function App() {
     similarityResult,
     selectReferencePixel,
     clearReference,
+    initWorker,
   } = useSimilarity()
+
+  // Initialize worker when embeddings are loaded
+  useEffect(() => {
+    if (embeddingData) {
+      initWorker(embeddingData)
+    }
+  }, [embeddingData, initWorker])
 
   // Handle area selection (both click-to-place and draw modes)
   const handleBoundingBoxChange = useCallback((box: BoundingBox | null) => {
