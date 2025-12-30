@@ -96,9 +96,17 @@ const drawStyles = [
 interface MapProps {
   onBoundingBoxChange: (box: BoundingBox | null) => void
   boundingBox: BoundingBox | null
+  onMapClick?: (lng: number, lat: number) => void
+  isClickEnabled?: boolean
+  mapRef?: React.MutableRefObject<maplibregl.Map | null>
 }
 
-export default function Map({ onBoundingBoxChange }: MapProps) {
+export default function Map({
+  onBoundingBoxChange,
+  onMapClick,
+  isClickEnabled = false,
+  mapRef,
+}: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const draw = useRef<MapboxDraw | null>(null)
@@ -150,6 +158,11 @@ export default function Map({ onBoundingBoxChange }: MapProps) {
     onBoundingBoxChange(null)
   }, [onBoundingBoxChange])
 
+  const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
+    if (!isClickEnabled || !onMapClick) return
+    onMapClick(e.lngLat.lng, e.lngLat.lat)
+  }, [isClickEnabled, onMapClick])
+
   useEffect(() => {
     if (!mapContainer.current || map.current) return
 
@@ -181,12 +194,38 @@ export default function Map({ onBoundingBoxChange }: MapProps) {
     map.current.on('draw.update', handleDrawUpdate)
     map.current.on('draw.delete', handleDrawDelete)
 
+    // Expose map instance if ref provided
+    if (mapRef) {
+      mapRef.current = map.current
+    }
+
     return () => {
+      if (mapRef) {
+        mapRef.current = null
+      }
       map.current?.remove()
       map.current = null
       draw.current = null
     }
-  }, [handleDrawCreate, handleDrawUpdate, handleDrawDelete])
+  }, [handleDrawCreate, handleDrawUpdate, handleDrawDelete, mapRef])
+
+  // Handle click events separately to manage enabled/disabled state
+  useEffect(() => {
+    if (!map.current) return
+
+    map.current.on('click', handleMapClick)
+
+    // Update cursor based on click enabled state
+    if (isClickEnabled) {
+      map.current.getCanvas().style.cursor = 'crosshair'
+    } else {
+      map.current.getCanvas().style.cursor = ''
+    }
+
+    return () => {
+      map.current?.off('click', handleMapClick)
+    }
+  }, [handleMapClick, isClickEnabled])
 
   return (
     <div

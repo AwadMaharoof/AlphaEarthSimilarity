@@ -1,4 +1,4 @@
-import type { AppState, BoundingBox } from '../types'
+import type { AppState, BoundingBox, ReferencePixel, SimilarityResult } from '../types'
 
 interface ControlPanelProps {
   appState: AppState
@@ -7,6 +7,8 @@ interface ControlPanelProps {
   validationError: string | null
   errorMessage: string | null
   onLoadEmbeddings: () => void
+  referencePixel: ReferencePixel | null
+  similarityResult: SimilarityResult | null
 }
 
 const stateLabels: Record<AppState, string> = {
@@ -25,9 +27,22 @@ export default function ControlPanel({
   validationError,
   errorMessage,
   onLoadEmbeddings,
+  referencePixel,
+  similarityResult,
 }: ControlPanelProps) {
   const isLoading = appState === 'loading' || appState === 'calculating'
   const canLoad = boundingBox && isValid && !isLoading
+
+  // Calculate similarity stats if available
+  const similarityStats = similarityResult ? (() => {
+    const validScores = Array.from(similarityResult.scores).filter(s => s >= 0)
+    if (validScores.length === 0) return null
+    const max = Math.max(...validScores)
+    const min = Math.min(...validScores)
+    const avg = validScores.reduce((a, b) => a + b, 0) / validScores.length
+    const above07 = validScores.filter(s => s >= 0.7).length
+    return { max, min, avg, above07, total: validScores.length }
+  })() : null
 
   return (
     <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-sm">
@@ -57,6 +72,25 @@ export default function ControlPanel({
       {errorMessage && (
         <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded">
           {errorMessage}
+        </div>
+      )}
+
+      {/* Reference pixel info */}
+      {referencePixel && (
+        <div className="mb-3 text-xs text-gray-600 bg-green-50 p-2 rounded border border-green-200">
+          <div className="font-medium text-green-800 mb-1">Reference Pixel</div>
+          <div>Location: {referencePixel.lat.toFixed(5)}, {referencePixel.lng.toFixed(5)}</div>
+          <div>Pixel: ({referencePixel.pixelX}, {referencePixel.pixelY})</div>
+        </div>
+      )}
+
+      {/* Similarity stats */}
+      {similarityStats && (
+        <div className="mb-3 text-xs text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
+          <div className="font-medium text-blue-800 mb-1">Similarity Scores</div>
+          <div>Max: {similarityStats.max.toFixed(3)}</div>
+          <div>Avg: {similarityStats.avg.toFixed(3)}</div>
+          <div>Pixels &ge; 0.7: {similarityStats.above07.toLocaleString()} / {similarityStats.total.toLocaleString()}</div>
         </div>
       )}
 
