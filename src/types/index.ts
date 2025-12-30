@@ -3,6 +3,7 @@ export interface BoundingBox {
   minLat: number;
   maxLng: number;
   maxLat: number;
+  polygon?: [number, number][];  // Optional custom polygon [lng, lat] coordinates
 }
 
 export interface UTMCoord {

@@ -197,6 +197,7 @@ export default function Map({
       minLat: Math.min(...lats),
       maxLng: Math.max(...lngs),
       maxLat: Math.max(...lats),
+      polygon: coords.map(c => [c[0], c[1]] as [number, number]),
     }
   }, [])
 

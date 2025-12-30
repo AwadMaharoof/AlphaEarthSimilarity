@@ -3,6 +3,7 @@ import { EmbeddingData, ReferencePixel, SimilarityResult } from '../types';
 import { latLngToPixel } from '../utils/coordinates';
 import { extractEmbeddingVector } from '../utils/dequantize';
 import { getTileOrigin } from '../utils/cogIndex';
+import { createPolygonMask } from '../utils/polygonMask';
 import { CONFIG } from '../constants';
 import type { TileInfo } from '../types';
 
@@ -26,6 +27,7 @@ interface UseSimilarityResult {
 function calculateSimilarityScores(
   embeddings: Float32Array,
   mask: boolean[],
+  polygonMask: boolean[] | null,
   refVector: Float32Array,
   width: number,
   height: number
@@ -35,8 +37,8 @@ function calculateSimilarityScores(
   const scores = new Float32Array(numPixels);
 
   for (let pixelIdx = 0; pixelIdx < numPixels; pixelIdx++) {
-    // Skip masked pixels
-    if (!mask[pixelIdx]) {
+    // Skip pixels outside polygon or masked by data
+    if (!mask[pixelIdx] || (polygonMask && !polygonMask[pixelIdx])) {
       scores[pixelIdx] = -1; // Mark as invalid
       continue;
     }
@@ -132,10 +134,18 @@ export function useSimilarity(): UseSimilarityResult {
         };
         setReferencePixel(refPixel);
 
+        // Create polygon mask if custom shape was drawn
+        const polygonMask = createPolygonMask(
+          embeddingData.bounds,
+          embeddingData.width,
+          embeddingData.height
+        );
+
         // Calculate similarity scores for all pixels
         const scores = calculateSimilarityScores(
           embeddingData.embeddings,
           embeddingData.mask,
+          polygonMask,
           vector,
           embeddingData.width,
           embeddingData.height
