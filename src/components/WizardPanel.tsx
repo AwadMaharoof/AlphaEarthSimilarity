@@ -26,7 +26,18 @@ interface WizardPanelProps {
   drawControls: DrawControls | null
 }
 
-const SIZE_OPTIONS: AreaSize[] = [1, 2, 4]
+const SIZE_OPTIONS: AreaSize[] = [2, 4, 6, 8, 10, 15, 20]
+
+// Estimated download size and time based on area (at 10m resolution, 64 bands)
+function getEstimates(sizeKm: number): { mb: number; seconds: string } {
+  const pixels = (sizeKm * 100) ** 2 // 100 pixels per km
+  const mb = (pixels * 64) / (1024 * 1024) // 64 bytes per pixel
+  const seconds = mb / 3 // ~3 MB/s typical download speed
+  return {
+    mb: Math.round(mb),
+    seconds: seconds < 10 ? `~${Math.round(seconds)}s` : seconds < 60 ? `~${Math.round(seconds)}s` : `~${Math.round(seconds / 60)}min`
+  }
+}
 
 export default function WizardPanel({
   wizard,
@@ -49,15 +60,28 @@ export default function WizardPanel({
 }: WizardPanelProps) {
   const { step, areaMode, areaSize, error } = wizard
 
-  // Calculate similarity stats
+  // Calculate similarity stats (using loop to avoid call stack overflow with large arrays)
   const similarityStats = similarityResult ? (() => {
-    const validScores = Array.from(similarityResult.scores).filter(s => s >= 0)
-    if (validScores.length === 0) return null
-    const max = Math.max(...validScores)
-    const min = Math.min(...validScores)
-    const avg = validScores.reduce((a, b) => a + b, 0) / validScores.length
-    const above07 = validScores.filter(s => s >= 0.7).length
-    return { max, min, avg, above07, total: validScores.length }
+    const scores = similarityResult.scores
+    let max = -Infinity
+    let min = Infinity
+    let sum = 0
+    let count = 0
+    let above07 = 0
+
+    for (let i = 0; i < scores.length; i++) {
+      const s = scores[i]
+      if (s >= 0) {
+        if (s > max) max = s
+        if (s < min) min = s
+        sum += s
+        count++
+        if (s >= 0.7) above07++
+      }
+    }
+
+    if (count === 0) return null
+    return { max, min, avg: sum / count, above07, total: count }
   })() : null
 
   return (
@@ -129,24 +153,33 @@ export default function WizardPanel({
             {/* Size selector (only for click mode) */}
             {areaMode === 'click' && (
               <div>
-                <div className="text-xs text-gray-500 mb-2">Area size</div>
-                <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                <div className="text-xs text-gray-500 mb-2">Area size (km)</div>
+                <div className="grid grid-cols-4 gap-1">
                   {SIZE_OPTIONS.map((size) => (
                     <button
                       key={size}
                       onClick={() => onSetSize(size)}
-                      className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                        size !== SIZE_OPTIONS[0] ? 'border-l border-gray-300' : ''
-                      } ${
+                      className={`px-2 py-1.5 text-sm font-medium rounded transition-colors ${
                         areaSize === size
                           ? 'bg-blue-600 text-white'
-                          : 'bg-white text-gray-700 hover:bg-gray-50'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      {size}km
+                      {size}
                     </button>
                   ))}
                 </div>
+                {/* Download estimate */}
+                {(() => {
+                  const est = getEstimates(areaSize)
+                  const isLarge = areaSize >= 10
+                  return (
+                    <div className={`mt-2 text-xs p-1.5 rounded ${isLarge ? 'bg-amber-50 text-amber-700' : 'text-gray-500'}`}>
+                      {est.mb}MB download, {est.seconds}
+                      {isLarge && ' — larger areas are slower'}
+                    </div>
+                  )
+                })()}
               </div>
             )}
 

@@ -6,7 +6,7 @@ export const CONFIG = {
   COG_INDEX_URL: 'https://data.source.coop/tge-labs/aef/v1/annual/aef_index.parquet',
 
   // Constraints
-  MAX_BOX_SIZE_KM: 5,
+  MAX_BOX_SIZE_KM: 20,
   EMBEDDING_BANDS: 64,
 
   // Pixel resolution in meters (AlphaEarth embeddings are 10m resolution)

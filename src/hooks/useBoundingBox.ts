@@ -68,8 +68,9 @@ export function useBoundingBox(): UseBoundingBoxReturn {
       (minLng + maxLng) / 2
     )
 
-    // Check size constraint
-    if (widthKm > CONFIG.MAX_BOX_SIZE_KM || heightKm > CONFIG.MAX_BOX_SIZE_KM) {
+    // Check size constraint (with small tolerance for floating point precision)
+    const maxWithTolerance = CONFIG.MAX_BOX_SIZE_KM * 1.01
+    if (widthKm > maxWithTolerance || heightKm > maxWithTolerance) {
       return {
         error: `Bounding box too large: ${widthKm.toFixed(1)}km x ${heightKm.toFixed(1)}km. Maximum is ${CONFIG.MAX_BOX_SIZE_KM}km x ${CONFIG.MAX_BOX_SIZE_KM}km.`,
         isValid: false,

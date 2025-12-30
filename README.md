@@ -4,7 +4,7 @@ A browser-based tool for finding visually similar features in satellite imagery 
 
 ## How It Works
 
-1. **Select Area** — Click to place a 1/2/4km square, or draw a custom polygon
+1. **Select Area** — Click to place a 2-20km square, or draw a custom polygon
 2. **Load Embeddings** — Fetch 64-dimensional satellite embeddings for the region
 3. **Pick Reference** — Click any pixel to use as the similarity reference
 4. **Explore Results** — Adjust threshold and opacity to explore similar features
@@ -23,6 +23,16 @@ Uses dot product on unit-normalized vectors, following [Google Earth Engine's re
 - Vectors are normalized to unit length after dequantization
 - Dot product equals cosine similarity for unit vectors
 - Scores near 1.0 indicate high similarity
+
+## Performance
+
+| Area | Pixels | Download | Similarity Calc |
+|------|--------|----------|-----------------|
+| 4km | 160K | ~10MB, ~3s | <10ms |
+| 10km | 1M | ~61MB, ~20s | ~70ms |
+| 20km | 4M | ~244MB, ~1min | ~250ms |
+
+The bottleneck is network download, not computation. Similarity calculation runs at ~15M pixels/sec.
 
 ## Tech Stack
 

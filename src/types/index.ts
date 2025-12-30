@@ -54,7 +54,7 @@ export interface SimilarityResult {
 // Wizard types
 export type WizardStep = 1 | 2 | 3 | 4;
 export type AreaMode = 'click' | 'draw';
-export type AreaSize = 1 | 2 | 4; // km
+export type AreaSize = 2 | 4 | 6 | 8 | 10 | 15 | 20; // km
 
 export interface WizardState {
   step: WizardStep;
