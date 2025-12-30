@@ -2,6 +2,8 @@
 
 A browser-based tool for finding visually similar features in satellite imagery using [AlphaEarth embeddings](https://arxiv.org/abs/2507.22291) — all client-side, no backend required.
 
+**[Live Demo](https://awadmaharoof.github.io/AlphaEarthSimilarity/)**
+
 ![Demo](assets/demo.gif)
 
 ## How It Works
