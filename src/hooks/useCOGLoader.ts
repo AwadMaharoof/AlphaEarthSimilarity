@@ -135,8 +135,13 @@ export function useCOGLoader(): UseCOGLoaderResult {
 
       setLoadingProgress({ step: 4, totalSteps: 4, message: 'Processing data...' });
 
+      // Validate rasterData is a typed array with buffer access
+      if (!rasterData || typeof rasterData !== 'object' || !('buffer' in rasterData)) {
+        throw new Error('Unexpected raster data format from GeoTIFF library');
+      }
+
       // Convert to Int8Array (geotiff returns Uint8Array, we need signed interpretation)
-      const rasterArray = rasterData as unknown as Uint8Array;
+      const rasterArray = rasterData as Uint8Array;
       const rawData = new Int8Array(rasterArray.buffer, rasterArray.byteOffset, rasterArray.length);
 
       const flippedData = flipVertical(

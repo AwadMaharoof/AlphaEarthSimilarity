@@ -96,7 +96,8 @@ async function fetchCOGIndex(): Promise<TileInfo[]> {
         lngLatBounds,
       });
     } catch (e) {
-      console.warn('Failed to parse row:', e, row);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.warn(`Failed to parse tile row (year=${row.year}, utm_zone=${row.utm_zone}): ${errorMessage}`);
     }
   }
 

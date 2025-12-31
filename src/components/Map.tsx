@@ -393,9 +393,10 @@ export default function Map({
     }
     hideDrawControls()
     // Also hide after a short delay in case they appear later
-    setTimeout(hideDrawControls, 100)
+    const hideTimeout = setTimeout(hideDrawControls, 100)
 
     return () => {
+      clearTimeout(hideTimeout)
       if (mapRef) {
         mapRef.current = null
       }

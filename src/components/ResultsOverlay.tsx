@@ -107,8 +107,9 @@ export default function ResultsOverlay({
       if (overlayRef.current && map) {
         try {
           map.removeControl(overlayRef.current as unknown as maplibregl.IControl);
-        } catch {
-          // Map may have been destroyed
+        } catch (e) {
+          // Map may have been destroyed - log for debugging but don't crash
+          console.debug('Failed to remove overlay control (map may be destroyed):', e);
         }
         overlayRef.current = null;
       }
