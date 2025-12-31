@@ -333,8 +333,8 @@ export default function Map({
       }
     })
 
-    // Set up click handler for both click-to-place and reference pixel selection
-    map.current.on('click', (e: maplibregl.MapMouseEvent) => {
+    // Handler for both click-to-place and reference pixel selection
+    const handleMapInteraction = (e: maplibregl.MapMouseEvent) => {
       const { lng, lat } = e.lngLat
 
       // Handle click-to-place area selection
@@ -347,6 +347,15 @@ export default function Map({
       // Handle reference pixel selection
       if (isClickEnabledRef.current && onMapClickRef.current) {
         onMapClickRef.current(lng, lat)
+      }
+    }
+
+    // Listen to both click and touchend for cross-device support
+    map.current.on('click', handleMapInteraction)
+    map.current.on('touchend', (e: maplibregl.MapTouchEvent) => {
+      // Only handle single-finger taps, not pinch/zoom gestures
+      if (e.originalEvent.touches?.length === 0 && e.points.length === 1) {
+        handleMapInteraction(e as unknown as maplibregl.MapMouseEvent)
       }
     })
 
