@@ -66,13 +66,12 @@ def main():
 
         print(f"Filtered: {filtered_rows:,} rows")
 
-        # Write with zstd compression
-        print(f"\nWriting {OUTPUT_FILE} with zstd compression...")
+        # Write with gzip compression (good balance of size and compatibility)
+        print(f"\nWriting {OUTPUT_FILE} with gzip compression...")
         pq.write_table(
             filtered,
             OUTPUT_FILE,
-            compression='zstd',
-            compression_level=19  # Max compression
+            compression='gzip'
         )
 
         new_size = os.path.getsize(OUTPUT_FILE)

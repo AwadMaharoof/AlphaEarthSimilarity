@@ -26,14 +26,14 @@ interface ParquetRow {
   path: string | Uint8Array;  // S3 URL, may be binary
   year: number;  // int64 in parquet
   utm_zone: string;
-  utm_west: string;
-  utm_south: string;
-  utm_east: string;
-  utm_north: string;
-  wgs84_west: string;
-  wgs84_south: string;
-  wgs84_east: string;
-  wgs84_north: string;
+  utm_west: number;  // double in parquet
+  utm_south: number;
+  utm_east: number;
+  utm_north: number;
+  wgs84_west: number;
+  wgs84_south: number;
+  wgs84_east: number;
+  wgs84_north: number;
 }
 
 /**
@@ -70,12 +70,11 @@ async function fetchCOGIndex(): Promise<TileInfo[]> {
       const s3Path = decodeField(row.path);
       const httpsUrl = s3ToHttps(s3Path);
 
-      // Parse WGS84 bounds (stored as strings)
       const lngLatBounds: BoundingBox = {
-        minLng: parseFloat(row.wgs84_west),
-        minLat: parseFloat(row.wgs84_south),
-        maxLng: parseFloat(row.wgs84_east),
-        maxLat: parseFloat(row.wgs84_north),
+        minLng: row.wgs84_west,
+        minLat: row.wgs84_south,
+        maxLng: row.wgs84_east,
+        maxLat: row.wgs84_north,
       };
 
       tiles.push({
@@ -85,10 +84,10 @@ async function fetchCOGIndex(): Promise<TileInfo[]> {
         year: String(row.year),
         utmZone: row.utm_zone,
         utmBounds: {
-          minX: parseFloat(row.utm_west),
-          minY: parseFloat(row.utm_south),
-          maxX: parseFloat(row.utm_east),
-          maxY: parseFloat(row.utm_north),
+          minX: row.utm_west,
+          minY: row.utm_south,
+          maxX: row.utm_east,
+          maxY: row.utm_north,
         },
         lngLatBounds,
       });
