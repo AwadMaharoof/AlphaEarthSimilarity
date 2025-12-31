@@ -5,12 +5,13 @@ import WizardPanel from './components/WizardPanel'
 import InfoWidget from './components/InfoWidget'
 import ReferenceMarker from './components/ReferenceMarker'
 import ResultsOverlay from './components/ResultsOverlay'
+import HoverTooltip from './components/HoverTooltip'
 import { useBoundingBox } from './hooks/useBoundingBox'
 import { useCOGLoader } from './hooks/useCOGLoader'
 import { useSimilarity } from './hooks/useSimilarity'
 import { useDebounce } from './hooks/useDebounce'
 import { useWizard } from './hooks/useWizard'
-import type { BoundingBox } from './types'
+import type { BoundingBox, HoverInfo } from './types'
 
 function App() {
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -34,6 +35,7 @@ function App() {
   // Visualization settings
   const [threshold, setThreshold] = useState(0.7)
   const [opacity, setOpacity] = useState(0.8)
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
 
   // Debounce threshold to avoid excessive re-renders during slider drag
   const debouncedThreshold = useDebounce(threshold, 50)
@@ -123,6 +125,11 @@ function App() {
     reset()
   }, [setBoundingBox, clearReference, clearEmbeddings, reset])
 
+  // Handle hover over similarity heatmap
+  const handleHover = useCallback((info: HoverInfo | null) => {
+    setHoverInfo(info)
+  }, [])
+
   // Determine click states
   const isAreaSelectionEnabled = wizardState.step === 1
   const isReferenceSelectionEnabled = wizardState.step === 3 && embeddingData !== null
@@ -149,7 +156,9 @@ function App() {
         similarityResult={similarityResult}
         threshold={debouncedThreshold}
         opacity={opacity}
+        onHover={handleHover}
       />
+      <HoverTooltip hoverInfo={hoverInfo} />
       <WizardPanel
         wizard={wizardState}
         onSetMode={setMode}

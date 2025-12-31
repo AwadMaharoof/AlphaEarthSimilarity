@@ -2,14 +2,16 @@ import { useEffect, useRef, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { BitmapLayer } from '@deck.gl/layers';
-import type { SimilarityResult } from '../types';
+import type { SimilarityResult, HoverInfo } from '../types';
 import { scoresToRGBA } from '../utils/colormap';
+import type { PickingInfo } from '@deck.gl/core';
 
 interface ResultsOverlayProps {
   map: maplibregl.Map | null;
   similarityResult: SimilarityResult | null;
   threshold: number;
   opacity: number;
+  onHover: (info: HoverInfo | null) => void;
 }
 
 export default function ResultsOverlay({
@@ -17,6 +19,7 @@ export default function ResultsOverlay({
   similarityResult,
   threshold,
   opacity,
+  onHover,
 }: ResultsOverlayProps) {
   const overlayRef = useRef<MapboxOverlay | null>(null);
 
@@ -62,9 +65,32 @@ export default function ResultsOverlay({
           minFilter: 'nearest',
           magFilter: 'nearest',
         },
+        pickable: true,
+        onHover: (info: PickingInfo) => {
+          if (!info.coordinate || !similarityResult) {
+            onHover(null);
+            return;
+          }
+
+          const [lng, lat] = info.coordinate;
+          const { width, height, scores } = similarityResult;
+
+          // Convert lng/lat to pixel index
+          const x = Math.floor((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng) * width);
+          const y = Math.floor((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat) * height);
+
+          // Bounds check
+          if (x < 0 || x >= width || y < 0 || y >= height) {
+            onHover(null);
+            return;
+          }
+
+          const score = scores[y * width + x];
+          onHover({ x: info.x, y: info.y, score });
+        },
       }),
     ];
-  }, [imageData, similarityResult]);
+  }, [imageData, similarityResult, onHover]);
 
   // Initialize the deck.gl overlay once when map is available
   useEffect(() => {

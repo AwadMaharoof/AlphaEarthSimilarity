@@ -51,6 +51,12 @@ export interface SimilarityResult {
   bounds: BoundingBox;
 }
 
+export interface HoverInfo {
+  x: number;      // Screen X coordinate
+  y: number;      // Screen Y coordinate
+  score: number;  // Similarity score (0-1) or -1 for masked
+}
+
 
 // Wizard types
 export type WizardStep = 1 | 2 | 3 | 4;
