@@ -24,7 +24,7 @@ function s3ToHttps(s3Url: string): string {
 interface ParquetRow {
   crs: string;
   path: string | Uint8Array;  // S3 URL, may be binary
-  year: string;
+  year: number;  // int64 in parquet
   utm_zone: string;
   utm_west: string;
   utm_south: string;
@@ -65,9 +65,6 @@ async function fetchCOGIndex(): Promise<TileInfo[]> {
   const rows = Array.isArray(data) ? data : (data as { data: unknown[] }).data;
 
   for (const row of rows as ParquetRow[]) {
-    // Filter by target year
-    if (row.year !== CONFIG.TARGET_YEAR) continue;
-
     try {
       // Decode path (may be string or Uint8Array)
       const s3Path = decodeField(row.path);
@@ -85,7 +82,7 @@ async function fetchCOGIndex(): Promise<TileInfo[]> {
         wkt: '',
         crs: row.crs,
         url: httpsUrl,
-        year: row.year,
+        year: String(row.year),
         utmZone: row.utm_zone,
         utmBounds: {
           minX: parseFloat(row.utm_west),
@@ -97,7 +94,7 @@ async function fetchCOGIndex(): Promise<TileInfo[]> {
       });
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
-      console.warn(`Failed to parse tile row (year=${row.year}, utm_zone=${row.utm_zone}): ${errorMessage}`);
+      console.warn(`Failed to parse tile row (utm_zone=${row.utm_zone}): ${errorMessage}`);
     }
   }
 

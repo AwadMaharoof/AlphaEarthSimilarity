@@ -2,8 +2,8 @@ export const CONFIG = {
   // Basemap
   BASEMAP_URL: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
 
-  // COG Index (GeoParquet for efficient loading)
-  COG_INDEX_URL: 'https://data.source.coop/tge-labs/aef/v1/annual/aef_index.parquet',
+  // COG Index (pre-filtered to 2024 for faster loading)
+  COG_INDEX_URL: 'https://awadmaharoof.github.io/AlphaEarthSimilarity/aef_index_2024.parquet',
 
   // Constraints
   MAX_BOX_SIZE_KM: 20,
