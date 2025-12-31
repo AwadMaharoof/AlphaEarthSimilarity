@@ -78,8 +78,12 @@ function App() {
     if (box && wizardState.step === 1) {
       // Auto-advance to step 2 when area is selected
       areaSelected()
+      // Lock the drawn polygon so it can't be edited
+      if (wizardState.areaMode === 'draw' && drawControlsRef.current) {
+        drawControlsRef.current.lockDrawing()
+      }
     }
-  }, [setBoundingBox, clearError, wizardState.step, areaSelected])
+  }, [setBoundingBox, clearError, wizardState.step, wizardState.areaMode, areaSelected])
 
   // Handle loading embeddings
   const handleLoadEmbeddings = useCallback(async () => {
@@ -113,9 +117,12 @@ function App() {
     if (wizardState.step === 4) {
       // Go back to step 3 (select new reference)
       clearReference()
+    } else if (wizardState.step === 2) {
+      // Go back to step 1 (area selection) - clear the bounding box
+      setBoundingBox(null)
     }
     back()
-  }, [wizardState.step, clearReference, back])
+  }, [wizardState.step, clearReference, setBoundingBox, back])
 
   // Handle reset (start over)
   const handleReset = useCallback(() => {

@@ -94,14 +94,15 @@ const drawStyles = [
   },
 ]
 
-// Source and layer IDs for click-to-place square
-const SQUARE_SOURCE_ID = 'click-square-source'
-const SQUARE_FILL_LAYER_ID = 'click-square-fill'
-const SQUARE_OUTLINE_LAYER_ID = 'click-square-outline'
+// Source and layer IDs for selection polygon (used by both click-to-place and locked draw polygons)
+const SELECTION_SOURCE_ID = 'selection-source'
+const SELECTION_FILL_LAYER_ID = 'selection-fill'
+const SELECTION_OUTLINE_LAYER_ID = 'selection-outline'
 
 export interface DrawControls {
   startDrawing: () => void
   clearDrawing: () => void
+  lockDrawing: () => void
 }
 
 interface MapProps {
@@ -118,8 +119,22 @@ interface MapProps {
 
 /**
  * Convert bounding box to GeoJSON polygon
+ * Uses actual polygon coordinates if available, otherwise creates a rectangle
  */
 function bboxToGeoJSON(bbox: BoundingBox): GeoJSON.Feature<GeoJSON.Polygon> {
+  // Use the actual polygon if available (from draw mode)
+  if (bbox.polygon && bbox.polygon.length > 0) {
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Polygon',
+        coordinates: [bbox.polygon],
+      },
+    }
+  }
+
+  // Fall back to rectangle for click-to-place mode
   return {
     type: 'Feature',
     properties: {},
@@ -150,7 +165,7 @@ export default function Map({
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const draw = useRef<MapboxDraw | null>(null)
-  const squareLayersAdded = useRef(false)
+  const selectionLayersAdded = useRef(false)
 
   // Use refs to always have access to latest callbacks without re-registering listeners
   const onBoundingBoxChangeRef = useRef(onBoundingBoxChange)
@@ -204,11 +219,11 @@ export default function Map({
   /**
    * Add GeoJSON source and layers for displaying click-to-place square
    */
-  const ensureSquareLayers = useCallback(() => {
-    if (!map.current || squareLayersAdded.current) return
+  const ensureSelectionLayers = useCallback(() => {
+    if (!map.current || selectionLayersAdded.current) return
 
     // Add empty source
-    map.current.addSource(SQUARE_SOURCE_ID, {
+    map.current.addSource(SELECTION_SOURCE_ID, {
       type: 'geojson',
       data: {
         type: 'FeatureCollection',
@@ -218,9 +233,9 @@ export default function Map({
 
     // Add fill layer
     map.current.addLayer({
-      id: SQUARE_FILL_LAYER_ID,
+      id: SELECTION_FILL_LAYER_ID,
       type: 'fill',
-      source: SQUARE_SOURCE_ID,
+      source: SELECTION_SOURCE_ID,
       paint: {
         'fill-color': '#3bb2d0',
         'fill-opacity': 0.1,
@@ -229,25 +244,25 @@ export default function Map({
 
     // Add outline layer
     map.current.addLayer({
-      id: SQUARE_OUTLINE_LAYER_ID,
+      id: SELECTION_OUTLINE_LAYER_ID,
       type: 'line',
-      source: SQUARE_SOURCE_ID,
+      source: SELECTION_SOURCE_ID,
       paint: {
         'line-color': '#3bb2d0',
         'line-width': 2,
       },
     })
 
-    squareLayersAdded.current = true
+    selectionLayersAdded.current = true
   }, [])
 
   /**
    * Update the click-to-place square on the map
    */
-  const updateSquareLayer = useCallback((bbox: BoundingBox | null) => {
-    if (!map.current || !squareLayersAdded.current) return
+  const updateSelectionLayer = useCallback((bbox: BoundingBox | null) => {
+    if (!map.current || !selectionLayersAdded.current) return
 
-    const source = map.current.getSource(SQUARE_SOURCE_ID) as maplibregl.GeoJSONSource
+    const source = map.current.getSource(SELECTION_SOURCE_ID) as maplibregl.GeoJSONSource
     if (!source) return
 
     if (bbox) {
@@ -361,12 +376,12 @@ export default function Map({
 
     // Add square layers when style loads
     map.current.on('style.load', () => {
-      ensureSquareLayers()
+      ensureSelectionLayers()
     })
 
     // Also try adding immediately in case style already loaded
     if (map.current.isStyleLoaded()) {
-      ensureSquareLayers()
+      ensureSelectionLayers()
     }
 
     // Expose map instance if ref provided
@@ -388,6 +403,12 @@ export default function Map({
             onBoundingBoxChangeRef.current(null)
             // Restart drawing mode
             draw.current.changeMode('draw_polygon')
+          }
+        },
+        lockDrawing: () => {
+          if (draw.current) {
+            // Delete features from draw control - they will be rendered via the static layer
+            draw.current.deleteAll()
           }
         },
       }
@@ -415,30 +436,36 @@ export default function Map({
       map.current?.remove()
       map.current = null
       draw.current = null
-      squareLayersAdded.current = false
+      selectionLayersAdded.current = false
     }
-  }, [extractBoundingBox, mapRef, drawControlsRef, ensureSquareLayers])
+  }, [extractBoundingBox, mapRef, drawControlsRef, ensureSelectionLayers])
 
-  // Update square layer when boundingBox changes (for click mode)
+  // Selection layer visibility state machine:
+  // - Click mode:                    static layer shows boundingBox
+  // - Draw mode + step 1 (drawing):  MapboxDraw active, static layer hidden
+  // - Draw mode + step 2 (locked):   MapboxDraw cleared, static layer shows boundingBox
   useEffect(() => {
+    const shouldShowStaticLayer =
+      areaMode === 'click' ||
+      (areaMode === 'draw' && !isAreaSelectionEnabled)
+
+    if (shouldShowStaticLayer && boundingBox) {
+      updateSelectionLayer(boundingBox)
+    } else {
+      updateSelectionLayer(null)
+    }
+  }, [boundingBox, areaMode, isAreaSelectionEnabled, updateSelectionLayer])
+
+  // Handle draw control mode transitions
+  useEffect(() => {
+    if (!draw.current) return
+
     if (areaMode === 'click') {
-      updateSquareLayer(boundingBox)
-    }
-  }, [boundingBox, areaMode, updateSquareLayer])
-
-  // Handle mode switching
-  useEffect(() => {
-    if (areaMode === 'click' && draw.current) {
       draw.current.deleteAll()
+    } else if (areaMode === 'draw' && isAreaSelectionEnabled) {
+      draw.current.changeMode('draw_polygon')
     }
-    if (areaMode === 'draw') {
-      updateSquareLayer(null)
-      // Auto-start drawing when switching to draw mode
-      if (draw.current && isAreaSelectionEnabled) {
-        draw.current.changeMode('draw_polygon')
-      }
-    }
-  }, [areaMode, updateSquareLayer, isAreaSelectionEnabled])
+  }, [areaMode, isAreaSelectionEnabled])
 
 
   // Update cursor based on state
