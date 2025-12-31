@@ -2,6 +2,7 @@ import type { BoundingBox, ReferencePixel, SimilarityResult, LoadingProgress, Wi
 import type { DrawControls } from './Map'
 import { STEP_TITLES } from '../hooks/useWizard'
 import ThresholdSlider from './ThresholdSlider'
+import { downloadGeoTiff } from '../utils/exportGeoTiff'
 
 // Viridis gradient CSS (matches colormap.ts stops)
 const VIRIDIS_GRADIENT = 'linear-gradient(to right, rgb(68, 1, 84), rgb(59, 82, 139), rgb(33, 145, 140), rgb(94, 201, 98), rgb(253, 231, 37))';
@@ -334,6 +335,22 @@ export default function WizardPanel({
               opacity={opacity}
               onOpacityChange={onOpacityChange}
             />
+
+            {/* Export button */}
+            {similarityResult && (
+              <button
+                onClick={() => downloadGeoTiff(
+                  similarityResult.scores,
+                  similarityResult.width,
+                  similarityResult.height,
+                  similarityResult.bounds,
+                  'similarity.tif'
+                )}
+                className="w-full py-2 px-4 rounded font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+              >
+                Export GeoTIFF
+              </button>
+            )}
 
             {/* Select new reference button */}
             <button
