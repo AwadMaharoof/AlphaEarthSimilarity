@@ -86,7 +86,7 @@ export default function WizardPanel({
   })() : null
 
   return (
-    <div className="absolute top-4 left-4 right-4 sm:right-auto sm:w-80 bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="absolute top-4 left-4 right-4 sm:right-auto sm:w-80 bg-white rounded-lg shadow-lg overflow-hidden max-h-[calc(100dvh-2rem)] flex flex-col">
       {/* Step header */}
       <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
         <div className="flex items-center justify-between">
@@ -107,7 +107,7 @@ export default function WizardPanel({
       </div>
 
       {/* Step content */}
-      <div className="p-4">
+      <div className="p-4 overflow-y-auto flex-1 min-h-0">
         {/* Error display */}
         {(error || validationError) && (
           <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">
@@ -214,14 +214,6 @@ export default function WizardPanel({
             <div className="text-xs text-gray-500 bg-amber-50 p-2 rounded border border-amber-200">
               Using 2024 satellite embeddings. Note: basemap imagery date may differ.
             </div>
-
-            {/* Bounding box summary */}
-            {boundingBox && (
-              <div className="text-xs text-gray-600 font-mono bg-gray-50 p-2 rounded">
-                <div>SW: {boundingBox.minLat.toFixed(4)}, {boundingBox.minLng.toFixed(4)}</div>
-                <div>NE: {boundingBox.maxLat.toFixed(4)}, {boundingBox.maxLng.toFixed(4)}</div>
-              </div>
-            )}
 
             {/* Loading progress */}
             {loadingProgress && (
